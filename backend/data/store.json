@@ -1,0 +1,83 @@
+{
+  "clients": [
+    {
+      "id": "c1",
+      "fullName": "Rajesh Kumar Verma",
+      "contactNo": "+91 9876543210",
+      "email": "rajesh.verma@example.com",
+      "address": "Flat 402, Civil Lines, Court Road",
+      "createdAt": "2026-08-29T05:21:16.618Z",
+      "updatedAt": "2026-08-29T05:21:16.618Z"
+    }
+  ],
+  "enquiries": [
+    {
+      "id": "enq_1787980876619_ksm6b",
+      "clientId": null,
+      "fullName": "Advait Deshmukh",
+      "contactNo": "+919876543210",
+      "purpose": "Property Title Clearance",
+      "caseNumber": null,
+      "assignedAdvocate": "General Advocate Desk",
+      "urgency": "Urgent",
+      "status": "Waiting",
+      "notes": null,
+      "entryTime": "2026-08-29T05:21:16.616Z",
+      "consultationStartTime": null,
+      "consultationEndTime": null,
+      "createdAt": "2026-08-29T05:21:16.619Z",
+      "updatedAt": "2026-08-29T05:21:16.619Z"
+    },
+    {
+      "id": "e1",
+      "clientId": "c1",
+      "fullName": "Rajesh Kumar Verma",
+      "contactNo": "+91 9876543210",
+      "purpose": "Property Title Verification & Sale Deed",
+      "caseNumber": "DOC-2026/89",
+      "assignedAdvocate": "Adv. Sharma",
+      "urgency": "Normal",
+      "status": "Waiting",
+      "notes": "Wants guidance regarding ancestral land registry documents.",
+      "entryTime": "2026-08-29T04:56:16.618Z",
+      "createdAt": "2026-08-29T05:21:16.618Z",
+      "updatedAt": "2026-08-29T05:21:16.618Z",
+      "consultationStartTime": null,
+      "consultationEndTime": null
+    },
+    {
+      "id": "e2",
+      "clientId": null,
+      "fullName": "Anita Deshmukh",
+      "contactNo": "+91 9823456789",
+      "purpose": "Bail Matter / High Court Petition",
+      "caseNumber": "BAIL-442/26",
+      "assignedAdvocate": "Adv. Kulkarni",
+      "urgency": "Urgent",
+      "status": "In Consultation",
+      "notes": "Hearing scheduled for next Tuesday, urgent draft required.",
+      "entryTime": "2026-08-29T04:31:16.618Z",
+      "consultationStartTime": "2026-08-29T05:06:16.618Z",
+      "createdAt": "2026-08-29T05:21:16.618Z",
+      "updatedAt": "2026-08-29T05:21:16.618Z",
+      "consultationEndTime": null
+    },
+    {
+      "id": "e3",
+      "clientId": null,
+      "fullName": "Suresh Patil",
+      "contactNo": "+91 9911223344",
+      "purpose": "Matrimonial / Mutual Divorce Counseling",
+      "caseNumber": null,
+      "assignedAdvocate": "Adv. Sharma",
+      "urgency": "Normal",
+      "status": "Completed",
+      "notes": "First consultation completed. Advised documentation checklist.",
+      "entryTime": "2026-08-29T03:21:16.618Z",
+      "consultationStartTime": "2026-08-29T03:51:16.618Z",
+      "consultationEndTime": "2026-08-29T04:41:16.618Z",
+      "createdAt": "2026-08-29T05:21:16.618Z",
+      "updatedAt": "2026-08-29T05:21:16.618Z"
+    }
+  ]
+}

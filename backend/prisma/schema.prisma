@@ -1,0 +1,62 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Client {
+  id           String    @id @default(uuid())
+  fullName     String
+  contactNo    String    @unique
+  alternateNo  String?
+  email        String?
+  address      String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  enquiries    Enquiry[]
+
+  @@map("clients")
+}
+
+model Enquiry {
+  id                     String    @id @default(uuid())
+  clientId               String?
+  client                 Client?   @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  fullName               String
+  contactNo              String
+  purpose                String
+  caseNumber             String?
+  assignedAdvocate       String?
+  urgency                String    @default("Normal") // Normal, High, Urgent
+  status                 String    @default("Waiting") // Waiting, In Consultation, Completed, Rescheduled
+  notes                  String?
+  entryTime              DateTime  @default(now())
+  consultationStartTime  DateTime?
+  consultationEndTime    DateTime?
+  deletedAt              DateTime?
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
+
+  @@index([entryTime])
+  @@index([contactNo])
+  @@index([status])
+  @@index([status, entryTime])
+  @@index([urgency, entryTime])
+  @@index([deletedAt, entryTime])
+  @@map("enquiries")
+}
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  enquiryId  String?
+  action     String
+  changes    Json?
+  createdAt  DateTime @default(now())
+
+  @@index([enquiryId, createdAt])
+  @@index([createdAt])
+  @@map("audit_logs")
+}

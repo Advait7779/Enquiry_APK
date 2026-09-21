@@ -1,0 +1,35 @@
+# Dependencies
+**/node_modules/
+
+# Production & Build output
+**/dist/
+**/web-build/
+
+# Expo
+**/.expo/
+
+# Environment files
+**/.env
+**/.env.local
+**/.env.*.local
+!**/.env.example
+
+# Android / iOS build artifacts & credentials
+*.apk
+*.aab
+*.keystore
+*.jks
+
+# Temporary and local data
+backend/data/*.tmp
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# System & IDE files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
