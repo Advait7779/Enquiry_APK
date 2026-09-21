@@ -61,18 +61,17 @@ Use the root `docker-compose.yml` as one Coolify Docker Compose resource.
    AUTH_SECRET=<random-string-at-least-32-characters>
    AUTH_TOKEN_TTL_HOURS=168
    LOGIN_RATE_LIMIT_MAX=10
-   WEB_ORIGIN=https://clients.example.com
+   CORS_ORIGIN=
    RATE_LIMIT_MAX=1000
    OFFICE_TIMEZONE_OFFSET_MINUTES=330
-   EXPO_PUBLIC_DEFAULT_COUNTRY_CODE=91
    ```
 
-4. Assign `https://clients.example.com` only to the `web` service on port `8080`.
-5. Keep the `backend` and `database` services internal. Do not publish ports `5000` or `5432`.
+4. Assign `https://api.clients.example.com` to the `backend` service on internal port `5000`.
+5. Keep the `database` service internal. Do not publish PostgreSQL port `5432`.
 6. Enable HTTPS and deploy.
-7. Verify `https://clients.example.com/api/v1/health`, then use **Settings → Test Server Connection**.
+7. Verify `https://api.clients.example.com/api/v1/health`, then use **Settings → Test Server Connection** after installing the APK.
 
-The browser calls the same web origin and Nginx forwards `/api/v1` to the internal backend. After login, the app stores a time-limited signed session token; the configured password and signing secret remain only in the backend environment.
+The Android app connects directly to the HTTPS backend. After login, it stores a time-limited signed session token; the configured password and signing secret remain only in the backend environment.
 
 ### Production requirements
 
@@ -80,7 +79,7 @@ The browser calls the same web origin and Nginx forwards `/api/v1` to the intern
 - Keep the repository and all environment values private.
 - Rotate `API_KEY` after any suspected server-secret exposure.
 - Rotate `LOGIN_PASSWORD` and `AUTH_SECRET` after any suspected account or token exposure.
-- Use the web service as the only public entry point.
+- Expose only the backend through HTTPS; keep PostgreSQL private.
 - Deletions are soft deletes and create audit records; database backups remain the disaster-recovery mechanism.
 
 ## Build an Android APK later
@@ -90,7 +89,7 @@ Use the hosted HTTPS domain as the API endpoint. Configure it as the EAS `previe
 ```powershell
 cd mobile
 npx eas-cli login
-npx eas-cli env:set --name EXPO_PUBLIC_API_URL --value https://clients.example.com/api/v1 --environment preview --visibility plaintext
+npx eas-cli env:set --name EXPO_PUBLIC_API_URL --value https://api.clients.example.com/api/v1 --environment preview --visibility plaintext
 npx eas-cli env:set --name EXPO_PUBLIC_DEFAULT_COUNTRY_CODE --value 91 --environment preview --visibility plaintext
 npm run build:apk
 ```

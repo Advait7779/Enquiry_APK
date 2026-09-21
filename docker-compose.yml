@@ -27,7 +27,7 @@ services:
       AUTH_SECRET: ${AUTH_SECRET}
       AUTH_TOKEN_TTL_HOURS: ${AUTH_TOKEN_TTL_HOURS:-168}
       LOGIN_RATE_LIMIT_MAX: ${LOGIN_RATE_LIMIT_MAX:-10}
-      CORS_ORIGIN: ${WEB_ORIGIN}
+      CORS_ORIGIN: ${CORS_ORIGIN:-}
       RATE_LIMIT_MAX: ${RATE_LIMIT_MAX:-1000}
       OFFICE_TIMEZONE_OFFSET_MINUTES: ${OFFICE_TIMEZONE_OFFSET_MINUTES:-330}
     depends_on:
@@ -35,18 +35,6 @@ services:
         condition: service_healthy
     expose:
       - "5000"
-
-  web:
-    build:
-      context: ./mobile
-      args:
-        EXPO_PUBLIC_API_URL: /api/v1
-        EXPO_PUBLIC_DEFAULT_COUNTRY_CODE: ${EXPO_PUBLIC_DEFAULT_COUNTRY_CODE:-91}
-    restart: unless-stopped
-    depends_on:
-      - backend
-    expose:
-      - "8080"
 
 volumes:
   advocate_postgres_data:
