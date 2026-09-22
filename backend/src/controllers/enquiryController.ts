@@ -1,7 +1,8 @@
 import { Request, Response } from 'express';
 import { z } from 'zod';
-import { dbService, StaleRecordError } from '../config/db';
+import { dbService } from '../config/db';
 import { getOfficePeriodRange, OfficePeriod } from '../utils/time';
+import { sendNewClientSms } from '../services/smsService';
 
 const createEnquirySchema = z.object({
   fullName: z.string().trim().min(2, 'Full name must be at least 2 characters').max(150),
@@ -12,12 +13,17 @@ const createEnquirySchema = z.object({
   purpose: z.string().trim().min(2, 'Purpose of visit is required').max(500),
   caseNumber: z.string().trim().max(100).optional(),
   assignedAdvocate: z.string().trim().max(150).optional(),
+  feesPaid: z.number()
+    .finite()
+    .min(0, 'Fees paid cannot be negative')
+    .max(99999999.99, 'Fees paid is too large')
+    .refine((value) => /^\d+(\.\d{1,2})?$/.test(String(value)), 'Fees paid can have at most 2 decimal places')
+    .default(0),
   urgency: z.enum(['Normal', 'High', 'Urgent']).optional(),
 });
 
 const filterFields = {
   search: z.string().trim().max(200).optional(),
-  status: z.enum(['All', 'Waiting', 'In Consultation', 'Completed', 'Rescheduled']).optional(),
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must use YYYY-MM-DD format').optional(),
   start: z.string().datetime().optional(),
   end: z.string().datetime().optional(),
@@ -44,17 +50,27 @@ const statsQuerySchema = z.object({
   message: 'Both start and end are required when specifying a date range',
 });
 
-const versionSchema = z.string().datetime('A valid record version is required');
-
 function csvCell(value: unknown): string {
   let text = value == null ? '' : String(value);
   if (/^[=+\-@]/.test(text)) text = `'${text}`;
   return `"${text.replace(/"/g, '""')}"`;
 }
 
-function publicEnquiry<T extends Record<string, any>>(enquiry: T): Omit<T, 'notes' | 'deletedAt'> {
-  const { notes: _notes, deletedAt: _deletedAt, ...publicData } = enquiry;
-  return publicData;
+function publicEnquiry<T extends Record<string, any>>(
+  enquiry: T,
+): Omit<T, 'notes' | 'deletedAt' | 'status' | 'consultationStartTime' | 'consultationEndTime'> {
+  const {
+    notes: _notes,
+    deletedAt: _deletedAt,
+    status: _status,
+    consultationStartTime: _consultationStartTime,
+    consultationEndTime: _consultationEndTime,
+    ...publicData
+  } = enquiry;
+  return {
+    ...publicData,
+    feesPaid: Number(publicData.feesPaid ?? 0),
+  } as Omit<T, 'notes' | 'deletedAt' | 'status' | 'consultationStartTime' | 'consultationEndTime'>;
 }
 
 function invalidRange(start?: string, end?: string): boolean {
@@ -66,15 +82,6 @@ function resolveFilter<T extends { start?: string; end?: string; period?: Office
   if (!period) return resolved;
   const range = getOfficePeriodRange(period);
   return { ...resolved, start: range.start.toISOString(), end: range.end.toISOString() };
-}
-
-function handleMutationError(error: unknown, res: Response): void {
-  if (error instanceof StaleRecordError) {
-    res.status(409).json({ success: false, message: error.message });
-    return;
-  }
-  const message = error instanceof Error ? error.message : 'Unexpected server error';
-  res.status(500).json({ success: false, message });
 }
 
 export const enquiryController = {
@@ -127,60 +134,22 @@ export const enquiryController = {
         ...validation.data,
         urgency: validation.data.urgency || 'Normal',
       });
+      const sms = await sendNewClientSms({
+        fullName: enquiry.fullName,
+        contactNo: enquiry.contactNo,
+        purpose: enquiry.purpose,
+        feesPaid: Number(enquiry.feesPaid ?? 0),
+      });
       res.status(201).json({
         success: true,
-        message: 'Client enquiry recorded successfully',
+        message: sms.status === 'sent'
+          ? 'Client enquiry recorded and SMS sent successfully'
+          : 'Client enquiry recorded successfully',
         data: publicEnquiry(enquiry as any),
+        sms,
       });
     } catch (error: any) {
       res.status(500).json({ success: false, message: error.message });
-    }
-  },
-
-  async updateStatus(req: Request, res: Response): Promise<void> {
-    try {
-      const validation = z.object({
-        status: z.enum(['Waiting', 'In Consultation', 'Completed', 'Rescheduled']),
-        expectedUpdatedAt: versionSchema,
-      }).safeParse(req.body);
-      if (!validation.success) {
-        res.status(400).json({ success: false, message: validation.error.errors[0].message });
-        return;
-      }
-      const updated = await dbService.updateEnquiryStatus(
-        req.params.id,
-        validation.data.status,
-        new Date(validation.data.expectedUpdatedAt),
-      );
-      if (!updated) {
-        res.status(404).json({ success: false, message: 'Enquiry not found' });
-        return;
-      }
-      res.json({
-        success: true,
-        message: `Status updated to ${validation.data.status}`,
-        data: publicEnquiry(updated as any),
-      });
-    } catch (error) {
-      handleMutationError(error, res);
-    }
-  },
-
-  async deleteEnquiry(req: Request, res: Response): Promise<void> {
-    try {
-      const validation = z.object({ expectedUpdatedAt: versionSchema }).safeParse(req.body);
-      if (!validation.success) {
-        res.status(400).json({ success: false, message: validation.error.errors[0].message });
-        return;
-      }
-      const deleted = await dbService.deleteEnquiry(req.params.id, new Date(validation.data.expectedUpdatedAt));
-      if (!deleted) {
-        res.status(404).json({ success: false, message: 'Enquiry not found' });
-        return;
-      }
-      res.json({ success: true, message: 'Enquiry removed from the active register' });
-    } catch (error) {
-      handleMutationError(error, res);
     }
   },
 
@@ -218,7 +187,7 @@ export const enquiryController = {
       res.setHeader('Content-Type', 'text/csv; charset=utf-8');
       res.setHeader('Content-Disposition', 'attachment; filename="advocate_visitor_register.csv"');
       res.setHeader('Cache-Control', 'no-store');
-      res.write('\uFEFFID,Full Name,Contact No,Purpose,Case Number,Advocate,Urgency,Status,Entry Time\n');
+      res.write('\uFEFFID,Full Name,Contact No,Purpose,Case Number,Advocate,Fees Paid,Urgency,Entry Time\n');
       for await (const batch of dbService.iterateEnquiries(resolveFilter(query.data))) {
         for (const enquiry of batch) {
           if (res.destroyed) return;
@@ -229,8 +198,8 @@ export const enquiryController = {
             csvCell(enquiry.purpose),
             csvCell(enquiry.caseNumber),
             csvCell(enquiry.assignedAdvocate),
+            csvCell(enquiry.feesPaid),
             csvCell(enquiry.urgency),
-            csvCell(enquiry.status),
             csvCell(new Date(enquiry.entryTime).toISOString()),
           ].join(',') + '\n');
         }

@@ -8,26 +8,23 @@ import {
   Linking,
   Alert,
   Share,
-  Platform,
-  useWindowDimensions
+  Platform
 } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useRoute, useNavigation, RouteProp } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors } from '../theme/colors';
-import { StatusBadge } from '../components/StatusBadge';
 import { UrgencyBadge } from '../components/UrgencyBadge';
 import { CustomButton } from '../components/CustomButton';
-import { CustomModal } from '../components/CustomModal';
 import { apiClient } from '../api/client';
 import { IEnquiry } from '../types';
 import { formatFullDate, formatTime } from '../utils/date';
-import { CallSvg, WhatsAppSvg, TrashSvg } from '../components/SvgIcons';
+import { CallSvg, WhatsAppSvg } from '../components/SvgIcons';
+import { formatFeesPaid } from '../utils/currency';
 import { usePreferences } from '../context/PreferencesContext';
 import { toDialNumber, toWhatsAppNumber } from '../utils/contact';
 import { AnimatedScreen } from '../components/AnimatedScreen';
 import { AnimatedPressable } from '../components/AnimatedPressable';
-import { notificationService } from '../services/notificationService';
 
 type ParamList = {
   Detail: {
@@ -39,29 +36,13 @@ export const DetailScreen: React.FC = () => {
   const route = useRoute<RouteProp<ParamList, 'Detail'>>();
   const navigation = useNavigation<any>();
   const insets = useSafeAreaInsets();
-  const { width } = useWindowDimensions();
 
   const { enquiryId } = route.params;
-  const { urgentAlertsEnabled, whatsAppShortcutsEnabled, notificationSoundEnabled } = usePreferences();
+  const { urgentAlertsEnabled, whatsAppShortcutsEnabled } = usePreferences();
   const [enquiry, setEnquiry] = useState<IEnquiry | null>(null);
   const [loading, setLoading] = useState(true);
-  const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
   const [loadError, setLoadError] = useState('');
   const requestSequence = useRef(0);
-
-  // Delete Modal State
-  const [deleteModalVisible, setDeleteModalVisible] = useState(false);
-  const [alertModalConfig, setAlertModalConfig] = useState<{
-    visible: boolean;
-    type: 'success' | 'danger' | 'warning' | 'info';
-    title: string;
-    message: string;
-  }>({
-    visible: false,
-    type: 'info',
-    title: '',
-    message: '',
-  });
 
   const fetchDetail = useCallback(async (silent = false) => {
     const requestId = ++requestSequence.current;
@@ -131,49 +112,10 @@ export const DetailScreen: React.FC = () => {
       `Purpose: ${enquiry.purpose}\n` +
       (enquiry.caseNumber ? `Case File: ${enquiry.caseNumber}\n` : '') +
       `Advocate: ${enquiry.assignedAdvocate || 'General Desk'}\n` +
-      `Status: ${enquiry.status}\n` +
+      `Fees Paid: ${formatFeesPaid(enquiry.feesPaid)}\n` +
       `Arrival: ${formatFullDate(enquiry.entryTime)} at ${formatTime(enquiry.entryTime)}`;
 
     await Share.share({ title: `Client File - ${enquiry.fullName}`, message: text });
-  };
-
-  const handleStatusChange = async (newStatus: IEnquiry['status']) => {
-    if (!enquiry || enquiry.status === newStatus) return;
-    setIsUpdatingStatus(true);
-    try {
-      const updated = await apiClient.updateStatus(enquiry.id, newStatus, enquiry.updatedAt);
-      setEnquiry(updated);
-      if (newStatus === 'Completed') {
-        notificationService.notifyCabinAvailable(enquiry.fullName, notificationSoundEnabled);
-      }
-    } catch (error: any) {
-      setAlertModalConfig({
-        visible: true,
-        type: 'danger',
-        title: 'Status Update Failed',
-        message: error.message || 'Could not update visitor status.',
-      });
-      await fetchDetail(true);
-    } finally {
-      setIsUpdatingStatus(false);
-    }
-  };
-
-  const confirmDelete = async () => {
-    if (!enquiry) return;
-    try {
-      setDeleteModalVisible(false);
-      await apiClient.deleteEnquiry(enquiry.id, enquiry.updatedAt);
-      navigation.goBack();
-    } catch (error: any) {
-      setAlertModalConfig({
-        visible: true,
-        type: 'danger',
-        title: 'Deletion Failed',
-        message: error.message || 'Failed to remove client record.',
-      });
-      await fetchDetail(true);
-    }
   };
 
   if (loading) {
@@ -278,62 +220,6 @@ export const DetailScreen: React.FC = () => {
           </View>
         </View>
 
-        {/* Update Visit Status (All 3 in a Single Row) */}
-        <View style={styles.card}>
-          <Text style={styles.cardSectionTitle}>Update Visit Status</Text>
-          <View style={styles.statusSegmentRow}>
-            {(['Waiting', 'In Consultation', 'Completed'] as const).map((st) => {
-              const isSelected = enquiry.status === st;
-              return (
-                <AnimatedPressable
-                  key={st}
-                  accessibilityRole="button"
-                  accessibilityLabel={`Set visit status to ${st}`}
-                  accessibilityState={{ selected: isSelected, disabled: isUpdatingStatus, busy: isUpdatingStatus }}
-                  onPress={() => handleStatusChange(st)}
-                  disabled={isUpdatingStatus}
-                  style={[
-                    styles.statusSegmentBtn,
-                    isSelected && styles.statusSegmentBtnActive,
-                    isSelected && {
-                      backgroundColor:
-                        st === 'Waiting'
-                          ? colors.status.waitingBg
-                          : st === 'In Consultation'
-                          ? colors.status.inConsultationBg
-                          : colors.status.completedBg,
-                      borderColor:
-                        st === 'Waiting'
-                          ? colors.status.waitingBorder
-                          : st === 'In Consultation'
-                          ? colors.status.inConsultationBorder
-                          : colors.status.completedBorder,
-                    }
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.statusSegmentText,
-                      isSelected && {
-                        color:
-                          st === 'Waiting'
-                            ? colors.status.waitingText
-                            : st === 'In Consultation'
-                            ? colors.status.inConsultationText
-                            : colors.status.completedText,
-                        fontWeight: '800'
-                      }
-                    ]}
-                    numberOfLines={1}
-                  >
-                    {st}
-                  </Text>
-                </AnimatedPressable>
-              );
-            })}
-          </View>
-        </View>
-
         {/* Enquiry & Case Details Card */}
         <View style={styles.card}>
           <Text style={styles.cardSectionTitle}>Enquiry & Case Details</Text>
@@ -356,76 +242,20 @@ export const DetailScreen: React.FC = () => {
           ) : null}
 
           <View style={styles.infoRow}>
+            <Text style={styles.infoLabel}>Fees Paid:</Text>
+            <Text style={styles.infoValue}>{formatFeesPaid(enquiry.feesPaid)}</Text>
+          </View>
+
+          <View style={styles.infoRow}>
             <Text style={styles.infoLabel}>Arrival Time:</Text>
             <Text style={styles.infoValue}>
               {formatFullDate(entryDate)} • {formatTime(entryDate)}
             </Text>
           </View>
 
-          {enquiry.consultationStartTime && (
-            <View style={styles.infoRow}>
-              <Text style={styles.infoLabel}>Consultation Started:</Text>
-              <Text style={styles.infoValue}>
-                {formatTime(enquiry.consultationStartTime)}
-              </Text>
-            </View>
-          )}
-
-          {enquiry.consultationEndTime && (
-            <View style={styles.infoRow}>
-              <Text style={styles.infoLabel}>Consultation Finished:</Text>
-              <Text style={styles.infoValue}>
-                {formatTime(enquiry.consultationEndTime)}
-              </Text>
-            </View>
-          )}
         </View>
 
-        {/* Delete Record Button */}
-        <AnimatedPressable
-          accessibilityRole="button"
-          accessibilityLabel={`Remove ${enquiry.fullName} from the active register`}
-          style={styles.deleteBtn}
-          onPress={() => setDeleteModalVisible(true)}
-        >
-          <View style={{ marginRight: 6 }}>
-            <TrashSvg size={16} color={colors.danger} />
-          </View>
-          <Text style={styles.deleteBtnText}>Remove This Client Record</Text>
-        </AnimatedPressable>
       </ScrollView>
-
-      {/* Themed Delete Confirmation Modal */}
-      <CustomModal
-        visible={deleteModalVisible}
-        onClose={() => setDeleteModalVisible(false)}
-        type="danger"
-        title="Remove Client Record"
-        message={`Remove the record for "${enquiry.fullName}" from the active register? An audit copy will remain in the database.`}
-        primaryAction={{
-          text: 'Remove Record',
-          variant: 'danger',
-          icon: 'trash',
-          onPress: confirmDelete,
-        }}
-        secondaryAction={{
-          text: 'Cancel',
-          onPress: () => setDeleteModalVisible(false),
-        }}
-      />
-
-      {/* Alert Feedback Modal */}
-      <CustomModal
-        visible={alertModalConfig.visible}
-        onClose={() => setAlertModalConfig({ ...alertModalConfig, visible: false })}
-        type={alertModalConfig.type}
-        title={alertModalConfig.title}
-        message={alertModalConfig.message}
-        primaryAction={{
-          text: 'OK',
-          onPress: () => setAlertModalConfig({ ...alertModalConfig, visible: false }),
-        }}
-      />
     </AnimatedScreen>
   );
 };
@@ -568,31 +398,6 @@ const styles = StyleSheet.create({
     color: colors.textPrimary,
     marginBottom: 12,
   },
-  statusSegmentRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  statusSegmentBtn: {
-    flex: 1,
-    paddingVertical: 9,
-    paddingHorizontal: 4,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surfaceSubtle,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  statusSegmentBtnActive: {
-    borderWidth: 1.5,
-  },
-  statusSegmentText: {
-    fontSize: 11.5,
-    fontWeight: '600',
-    color: colors.textSecondary,
-    textAlign: 'center',
-  },
   infoRow: {
     marginBottom: 12,
   },
@@ -607,23 +412,6 @@ const styles = StyleSheet.create({
     color: colors.textPrimary,
     fontWeight: '600',
     lineHeight: 19,
-  },
-  deleteBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 12,
-    backgroundColor: '#FEF2F2',
-    borderWidth: 1,
-    borderColor: '#FECACA',
-    borderRadius: 8,
-    marginTop: 4,
-    marginBottom: 20,
-  },
-  deleteBtnText: {
-    color: colors.danger,
-    fontSize: 13,
-    fontWeight: '700',
   },
 });
 

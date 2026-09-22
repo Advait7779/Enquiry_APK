@@ -11,7 +11,7 @@ function csvCell(value: unknown): string {
 }
 
 export async function exportEnquiriesToExcel(records: IEnquiry[], titlePrefix = 'Office_Visitor_Register'): Promise<void> {
-  const headers = ['Sr No', 'Client Name', 'Contact Number', 'Purpose / Reason of Visit', 'Priority', 'Status', 'Visit Date', 'Visit Time'];
+  const headers = ['Sr No', 'Client Name', 'Contact Number', 'Purpose / Reason of Visit', 'Fees Paid', 'Priority', 'Visit Date', 'Visit Time'];
   
   const headerRow = headers.map(csvCell).join(',');
   const dataRows = records.map((e, index) => {
@@ -21,8 +21,8 @@ export async function exportEnquiriesToExcel(records: IEnquiry[], titlePrefix = 
       csvCell(e.fullName),
       csvCell(e.contactNo),
       csvCell(e.purpose),
+      csvCell(e.feesPaid),
       csvCell(e.urgency),
-      csvCell(e.status),
       csvCell(formatDate(entryDate)),
       csvCell(formatTime(entryDate)),
     ].join(',');

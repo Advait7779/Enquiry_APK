@@ -3,8 +3,8 @@ import { View, Text, StyleSheet } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { IEnquiry } from '../types';
 import { colors } from '../theme/colors';
-import { StatusBadge } from './StatusBadge';
 import { formatTime, formatShortDate, isSameDay } from '../utils/date';
+import { formatFeesPaid } from '../utils/currency';
 import { AnimatedPressable } from './AnimatedPressable';
 
 interface VisitorRowItemProps {
@@ -22,7 +22,7 @@ export const VisitorRowItem: React.FC<VisitorRowItemProps> = ({ enquiry, onPress
   return (
     <AnimatedPressable
       accessibilityRole="button"
-      accessibilityLabel={`Open ${enquiry.fullName}, ${enquiry.status}, ${displayDate}`}
+      accessibilityLabel={`Open ${enquiry.fullName}, fees paid ${formatFeesPaid(enquiry.feesPaid)}, ${displayDate}`}
       style={styles.container}
       onPress={onPress}
     >
@@ -33,25 +33,23 @@ export const VisitorRowItem: React.FC<VisitorRowItemProps> = ({ enquiry, onPress
 
       {/* Middle: Client Name, Purpose & Contact */}
       <View style={styles.infoCol}>
-        <View style={styles.topRow}>
-          <Text style={styles.name} numberOfLines={1}>
-            {enquiry.fullName}
-          </Text>
-          <StatusBadge status={enquiry.status} size="sm" />
-        </View>
+        <Text style={styles.name} numberOfLines={1}>
+          {enquiry.fullName}
+        </Text>
 
         <Text style={styles.purposeText} numberOfLines={1}>
           {enquiry.purpose}
         </Text>
         <View style={styles.bottomRow}>
           <Text style={styles.contactText} numberOfLines={1}>{enquiry.contactNo}</Text>
-          <Text style={styles.timeText}>{displayDate}</Text>
+          <Text style={styles.feesText}>Paid {formatFeesPaid(enquiry.feesPaid)}</Text>
         </View>
       </View>
 
       {/* Right: Chevron */}
       <View style={styles.rightCol}>
         <Ionicons name="chevron-forward" size={16} color={colors.textMuted} />
+        <Text style={styles.timeText}>{displayDate}</Text>
       </View>
     </AnimatedPressable>
   );
@@ -93,18 +91,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginRight: 8,
   },
-  topRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 3,
-  },
   name: {
     fontSize: 14.5,
     fontWeight: '700',
     color: colors.textPrimary,
     flexShrink: 1,
-    marginRight: 6,
+    marginBottom: 3,
   },
   bottomRow: {
     flexDirection: 'row',
@@ -127,14 +119,18 @@ const styles = StyleSheet.create({
   rightCol: {
     alignItems: 'flex-end',
     justifyContent: 'center',
-    flexDirection: 'row',
     marginLeft: 4,
+  },
+  feesText: {
+    fontSize: 11.5,
+    color: colors.primary,
+    fontWeight: '700',
   },
   timeText: {
     fontSize: 11,
     color: colors.textMuted,
     fontWeight: '600',
-    marginRight: 2,
+    marginTop: 4,
   },
 });
 

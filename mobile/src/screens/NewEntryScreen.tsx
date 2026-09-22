@@ -23,6 +23,7 @@ import { AnimatedScreen } from '../components/AnimatedScreen';
 import { AnimatedPressable } from '../components/AnimatedPressable';
 import { usePreferences } from '../context/PreferencesContext';
 import { notificationService } from '../services/notificationService';
+import { formatFeesPaid } from '../utils/currency';
 
 export const NewEntryScreen: React.FC = () => {
   const navigation = useNavigation<any>();
@@ -43,6 +44,7 @@ export const NewEntryScreen: React.FC = () => {
   // Form State
   const [fullName, setFullName] = useState('');
   const [contactNo, setContactNo] = useState('');
+  const [feesPaid, setFeesPaid] = useState('');
   const [selectedPurpose, setSelectedPurpose] = useState(LEGAL_PURPOSES[0]);
   const [customPurpose, setCustomPurpose] = useState('');
   const [urgency, setUrgency] = useState<'Normal' | 'Urgent'>('Normal');
@@ -56,6 +58,7 @@ export const NewEntryScreen: React.FC = () => {
     name: string;
     phone: string;
     purpose: string;
+    feesPaid: number;
     urgency: string;
     time: string;
   } | null>(null);
@@ -92,6 +95,13 @@ export const NewEntryScreen: React.FC = () => {
       newErrors.customPurpose = 'Please enter the specific reason for visit.';
     }
 
+    const normalizedFees = feesPaid.trim().replace(/,/g, '');
+    if (normalizedFees && !/^\d+(\.\d{1,2})?$/.test(normalizedFees)) {
+      newErrors.feesPaid = 'Enter a valid amount with up to 2 decimal places.';
+    } else if (normalizedFees && Number(normalizedFees) > 99999999.99) {
+      newErrors.feesPaid = 'Fees paid is too large.';
+    }
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -104,11 +114,13 @@ export const NewEntryScreen: React.FC = () => {
       const finalPurpose = selectedPurpose.startsWith('Other')
         ? customPurpose.trim()
         : selectedPurpose;
+      const normalizedFees = feesPaid.trim().replace(/,/g, '');
 
       const created = await apiClient.createEnquiry({
         fullName: fullName.trim(),
         contactNo: contactNo.trim(),
         purpose: finalPurpose,
+        feesPaid: normalizedFees ? Number(normalizedFees) : 0,
         urgency: urgency as UrgencyLevel,
       });
 
@@ -125,6 +137,7 @@ export const NewEntryScreen: React.FC = () => {
         name: created.fullName,
         phone: created.contactNo,
         purpose: created.purpose,
+        feesPaid: created.feesPaid,
         urgency: created.urgency,
         time: formatTime(created.entryTime),
       });
@@ -145,6 +158,7 @@ export const NewEntryScreen: React.FC = () => {
   const resetForm = () => {
     setFullName('');
     setContactNo('');
+    setFeesPaid('');
     setSelectedPurpose(LEGAL_PURPOSES[0]);
     setCustomPurpose('');
     setUrgency('Normal');
@@ -216,6 +230,21 @@ export const NewEntryScreen: React.FC = () => {
             error={errors.contactNo}
             helperText="Enter 7–15 digits, including country code when needed"
             leftIcon={<Ionicons name="call-outline" size={17} color={colors.textSecondary} />}
+          />
+
+          <CustomInput
+            label="Fees Paid (₹)"
+            placeholder="e.g. 5000"
+            value={feesPaid}
+            onChangeText={(text) => {
+              setFeesPaid(text);
+              if (errors.feesPaid) setErrors({ ...errors, feesPaid: undefined });
+            }}
+            keyboardType="decimal-pad"
+            error={errors.feesPaid}
+            helperText="Optional — record only the amount already paid by this client"
+            maxLength={12}
+            leftIcon={<Ionicons name="cash-outline" size={17} color={colors.textSecondary} />}
           />
         </View>
 
@@ -340,7 +369,7 @@ export const NewEntryScreen: React.FC = () => {
           onClose={() => setSavedClientInfo(null)}
           type="success"
           title="New Client Added"
-          message={`Client "${savedClientInfo.name}" has been recorded at ${savedClientInfo.time}.\n\nContact: ${savedClientInfo.phone}\nPurpose: ${savedClientInfo.purpose}\nPriority: ${savedClientInfo.urgency}`}
+          message={`Client "${savedClientInfo.name}" has been recorded at ${savedClientInfo.time}.\n\nContact: ${savedClientInfo.phone}\nPurpose: ${savedClientInfo.purpose}\nFees Paid: ${formatFeesPaid(savedClientInfo.feesPaid)}\nPriority: ${savedClientInfo.urgency}`}
           primaryAction={{
             text: 'View Lobby Queue',
             icon: 'people',

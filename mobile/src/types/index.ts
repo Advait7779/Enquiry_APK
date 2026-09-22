@@ -1,5 +1,4 @@
 export type UrgencyLevel = 'Normal' | 'High' | 'Urgent';
-export type EnquiryStatus = 'Waiting' | 'In Consultation' | 'Completed' | 'Rescheduled';
 
 export interface IEnquiry {
   id: string;
@@ -9,11 +8,9 @@ export interface IEnquiry {
   purpose: string;
   caseNumber?: string | null;
   assignedAdvocate?: string | null;
+  feesPaid: number;
   urgency: UrgencyLevel;
-  status: EnquiryStatus;
   entryTime: string; // ISO string
-  consultationStartTime?: string | null;
-  consultationEndTime?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -24,6 +21,7 @@ export interface CreateEnquiryInput {
   purpose: string;
   caseNumber?: string;
   assignedAdvocate?: string;
+  feesPaid?: number;
   urgency?: UrgencyLevel;
 }
 
@@ -33,14 +31,6 @@ export interface EnquiryPage {
   pageSize: number;
   total: number;
   totalPages: number;
-}
-
-export interface TodayStats {
-  totalToday: number;
-  waiting: number;
-  inConsultation: number;
-  completed: number;
-  urgent: number;
 }
 
 export const LEGAL_PURPOSES = [

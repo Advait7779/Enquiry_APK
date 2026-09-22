@@ -48,10 +48,6 @@ export const NotificationsPanelModal: React.FC = () => {
     switch (type) {
       case 'urgent':
         return 'flash' as const;
-      case 'cabin':
-        return 'checkmark-circle' as const;
-      case 'wait':
-        return 'hourglass' as const;
       default:
         return 'notifications' as const;
     }

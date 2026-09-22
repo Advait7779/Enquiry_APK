@@ -1,13 +1,12 @@
 import axios, { AxiosError } from 'axios';
 import Constants from 'expo-constants';
 import { NativeModules, Platform } from 'react-native';
-import { CreateEnquiryInput, EnquiryPage, IEnquiry, TodayStats } from '../types';
+import { CreateEnquiryInput, EnquiryPage, IEnquiry } from '../types';
 
 declare const process: { env: Record<string, string | undefined> };
 
 export interface EnquiryFilter {
   search?: string;
-  status?: string;
   date?: string;
   start?: string;
   end?: string;
@@ -173,41 +172,6 @@ export const apiClient = {
     try {
       const response = await axios.post(`${baseUrl}/enquiries`, input, requestOptions(10000));
       return assertData<IEnquiry>(response.data, 'The server did not confirm that the client was saved.');
-    } catch (error) {
-      throw apiError(error);
-    }
-  },
-
-  async updateStatus(id: string, status: IEnquiry['status'], expectedUpdatedAt: string): Promise<IEnquiry> {
-    try {
-      const response = await axios.patch(
-        `${baseUrl}/enquiries/${encodeURIComponent(id)}/status`,
-        { status, expectedUpdatedAt },
-        requestOptions(8000),
-      );
-      return assertData<IEnquiry>(response.data, 'The server did not confirm the status update.');
-    } catch (error) {
-      throw apiError(error);
-    }
-  },
-
-  async deleteEnquiry(id: string, expectedUpdatedAt: string): Promise<boolean> {
-    try {
-      const response = await axios.delete(`${baseUrl}/enquiries/${encodeURIComponent(id)}`, {
-        ...requestOptions(8000),
-        data: { expectedUpdatedAt },
-      });
-      if (response.data?.success) return true;
-      throw new Error('The server did not confirm deletion.');
-    } catch (error) {
-      throw apiError(error);
-    }
-  },
-
-  async getTodayStats(): Promise<TodayStats> {
-    try {
-      const response = await readWithRetry(() => axios.get(`${baseUrl}/stats/today`, requestOptions(8000)));
-      return assertData<TodayStats>(response.data, 'The server returned invalid statistics.');
     } catch (error) {
       throw apiError(error);
     }

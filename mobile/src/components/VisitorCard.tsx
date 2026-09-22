@@ -5,11 +5,9 @@ import {
   StyleSheet,
   Linking,
   Alert,
-  useWindowDimensions
 } from 'react-native';
 import { IEnquiry } from '../types';
 import { colors } from '../theme/colors';
-import { StatusBadge } from './StatusBadge';
 import { UrgencyBadge } from './UrgencyBadge';
 import { formatTime, formatTimeAgo } from '../utils/date';
 import {
@@ -17,9 +15,7 @@ import {
   WhatsAppSvg,
   ClockSvg,
   PersonSvg,
-  FolderCaseSvg,
-  ConsultationSvg,
-  CompletedCheckSvg
+  FolderCaseSvg
 } from './SvgIcons';
 import { usePreferences } from '../context/PreferencesContext';
 import { toDialNumber, toWhatsAppNumber } from '../utils/contact';
@@ -28,21 +24,14 @@ import { AnimatedPressable } from './AnimatedPressable';
 interface VisitorCardProps {
   enquiry: IEnquiry;
   onPress: () => void;
-  onStatusChange?: (newStatus: IEnquiry['status']) => void;
-  statusUpdating?: boolean;
   relativeTime?: Date;
 }
 
 export const VisitorCard: React.FC<VisitorCardProps> = ({
   enquiry,
   onPress,
-  onStatusChange,
-  statusUpdating = false,
   relativeTime = new Date(),
 }) => {
-  const { width } = useWindowDimensions();
-  const isSmallScreen = width < 380;
-
   const entryDate = new Date(enquiry.entryTime);
   const timeFormatted = formatTime(entryDate);
   const timeAgo = formatTimeAgo(entryDate, relativeTime);
@@ -77,36 +66,14 @@ export const VisitorCard: React.FC<VisitorCardProps> = ({
     });
   };
 
-  const getNextStatusAction = () => {
-    if (enquiry.status === 'Waiting') {
-      return {
-        label: 'Start Consultation',
-        target: 'In Consultation' as const,
-        icon: (c: string) => <ConsultationSvg size={13} color={c} />,
-        color: colors.primary,
-      };
-    }
-    if (enquiry.status === 'In Consultation') {
-      return {
-        label: 'Mark Completed',
-        target: 'Completed' as const,
-        icon: (c: string) => <CompletedCheckSvg size={13} color={c} />,
-        color: colors.success,
-      };
-    }
-    return null;
-  };
-
-  const nextAction = getNextStatusAction();
-
   return (
     <AnimatedPressable
       accessibilityRole="button"
-      accessibilityLabel={`Open ${enquiry.fullName}, ${enquiry.status}`}
+      accessibilityLabel={`Open ${enquiry.fullName}`}
       onPress={onPress}
       style={styles.card}
     >
-      {/* Top Row: Name, Urgency, Status */}
+      {/* Top Row: Name and urgency */}
       <View style={styles.headerRow}>
         <View style={{ flex: 1 }}>
           <View style={styles.nameRow}>
@@ -124,7 +91,6 @@ export const VisitorCard: React.FC<VisitorCardProps> = ({
             </Text>
           </View>
         </View>
-        <StatusBadge status={enquiry.status} size="sm" />
       </View>
 
       {/* Purpose Banner */}
@@ -164,16 +130,9 @@ export const VisitorCard: React.FC<VisitorCardProps> = ({
       <View style={styles.divider} />
 
       {/* Bottom Action Row */}
-      <View style={[
-        isSmallScreen 
-          ? { flexDirection: 'column', alignItems: 'stretch' } 
-          : { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }
-      ]}>
+      <View style={styles.bottomActionRow}>
         {/* Quick Contact Buttons */}
-        <View style={[
-          styles.contactActions,
-          isSmallScreen && nextAction && onStatusChange ? { marginBottom: 8 } : null
-        ]}>
+        <View style={styles.contactActions}>
           <AnimatedPressable
             accessibilityRole="button"
             accessibilityLabel={`Call ${enquiry.fullName}`}
@@ -201,29 +160,6 @@ export const VisitorCard: React.FC<VisitorCardProps> = ({
           ) : null}
         </View>
 
-        {/* Next Status Quick Button */}
-        {nextAction && onStatusChange && (
-          <AnimatedPressable
-            accessibilityRole="button"
-            accessibilityLabel={`${nextAction.label} for ${enquiry.fullName}`}
-            accessibilityState={{ disabled: statusUpdating, busy: statusUpdating }}
-            style={[
-              styles.statusNextBtn, 
-              { borderColor: nextAction.color },
-              isSmallScreen ? { width: '100%' } : null,
-              statusUpdating && styles.disabled,
-            ]}
-            onPress={() => onStatusChange(nextAction.target)}
-            disabled={statusUpdating}
-          >
-            <View style={{ marginRight: 4 }}>
-              {nextAction.icon(nextAction.color)}
-            </View>
-            <Text style={[styles.statusNextText, { color: nextAction.color }]}>
-              {nextAction.label}
-            </Text>
-          </AnimatedPressable>
-        )}
       </View>
     </AnimatedPressable>
   );
@@ -316,6 +252,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
   },
+  bottomActionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
   actionBtn: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -338,24 +278,6 @@ const styles = StyleSheet.create({
   },
   waBtnText: {
     color: '#FFFFFF',
-    fontSize: 11.5,
-    fontWeight: '700',
-  },
-  statusNextBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    minHeight: 40,
-    borderRadius: 6,
-    borderWidth: 1,
-    backgroundColor: '#FFFFFF',
-  },
-  disabled: {
-    opacity: 0.55,
-  },
-  statusNextText: {
     fontSize: 11.5,
     fontWeight: '700',
   },

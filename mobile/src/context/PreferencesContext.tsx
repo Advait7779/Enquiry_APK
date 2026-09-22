@@ -7,21 +7,18 @@ interface Preferences {
   urgentAlertsEnabled: boolean;
   whatsAppShortcutsEnabled: boolean;
   notificationSoundEnabled: boolean;
-  waitRemindersEnabled: boolean;
 }
 
 interface PreferencesContextValue extends Preferences {
   setUrgentAlertsEnabled: (enabled: boolean) => void;
   setWhatsAppShortcutsEnabled: (enabled: boolean) => void;
   setNotificationSoundEnabled: (enabled: boolean) => void;
-  setWaitRemindersEnabled: (enabled: boolean) => void;
 }
 
 const defaults: Preferences = {
   urgentAlertsEnabled: true,
   whatsAppShortcutsEnabled: true,
   notificationSoundEnabled: true,
-  waitRemindersEnabled: true,
 };
 
 const PreferencesContext = createContext<PreferencesContextValue | null>(null);
@@ -39,7 +36,6 @@ export const PreferencesProvider: React.FC<React.PropsWithChildren> = ({ childre
           urgentAlertsEnabled: parsed.urgentAlertsEnabled ?? defaults.urgentAlertsEnabled,
           whatsAppShortcutsEnabled: parsed.whatsAppShortcutsEnabled ?? defaults.whatsAppShortcutsEnabled,
           notificationSoundEnabled: parsed.notificationSoundEnabled ?? defaults.notificationSoundEnabled,
-          waitRemindersEnabled: parsed.waitRemindersEnabled ?? defaults.waitRemindersEnabled,
         });
       })
       .catch((error) => console.warn('Could not load app preferences:', error));
@@ -60,7 +56,6 @@ export const PreferencesProvider: React.FC<React.PropsWithChildren> = ({ childre
     setUrgentAlertsEnabled: (enabled) => update({ urgentAlertsEnabled: enabled }),
     setWhatsAppShortcutsEnabled: (enabled) => update({ whatsAppShortcutsEnabled: enabled }),
     setNotificationSoundEnabled: (enabled) => update({ notificationSoundEnabled: enabled }),
-    setWaitRemindersEnabled: (enabled) => update({ waitRemindersEnabled: enabled }),
   }), [preferences, update]);
 
   return <PreferencesContext.Provider value={value}>{children}</PreferencesContext.Provider>;

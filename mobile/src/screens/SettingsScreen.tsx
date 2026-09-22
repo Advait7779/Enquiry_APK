@@ -31,11 +31,9 @@ export const SettingsScreen: React.FC = () => {
     urgentAlertsEnabled,
     whatsAppShortcutsEnabled,
     notificationSoundEnabled,
-    waitRemindersEnabled,
     setUrgentAlertsEnabled,
     setWhatsAppShortcutsEnabled,
     setNotificationSoundEnabled,
-    setWaitRemindersEnabled,
   } = usePreferences();
 
   // Connection test and export state
@@ -155,9 +153,9 @@ export const SettingsScreen: React.FC = () => {
 
         {/* Office Preferences */}
         <View style={styles.card}>
-          <Text style={styles.sectionTitle}>Intake & Queue Preferences</Text>
+          <Text style={styles.sectionTitle}>Client Intake Preferences</Text>
           <Text style={styles.sectionSubtext}>
-            Configure standard workflows for visitor check-ins and reception desk.
+            Configure client entry and reception-desk preferences.
           </Text>
 
           {/* Setting 1: Auto Timestamp */}
@@ -246,28 +244,6 @@ export const SettingsScreen: React.FC = () => {
               value={notificationSoundEnabled}
               onValueChange={setNotificationSoundEnabled}
               trackColor={{ false: colors.border, true: colors.primary }}
-              thumbColor="#FFFFFF"
-            />
-          </View>
-
-          <View style={styles.divider} />
-
-          {/* Setting: Lobby Wait Alerts */}
-          <View style={styles.settingItem}>
-            <View style={styles.settingIconWrap}>
-              <Ionicons name="hourglass-outline" size={18} color={colors.accent} />
-            </View>
-            <View style={{ flex: 1, marginRight: 10 }}>
-              <Text style={styles.settingLabel}>Lobby Wait Alerts (30+ Mins)</Text>
-              <Text style={styles.settingDesc}>
-                Remind staff when any visitor has been waiting for more than 30 minutes.
-              </Text>
-            </View>
-            <Switch
-              accessibilityLabel="Lobby wait alerts"
-              value={waitRemindersEnabled}
-              onValueChange={setWaitRemindersEnabled}
-              trackColor={{ false: colors.border, true: colors.accent }}
               thumbColor="#FFFFFF"
             />
           </View>

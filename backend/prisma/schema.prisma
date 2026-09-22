@@ -30,6 +30,7 @@ model Enquiry {
   purpose                String
   caseNumber             String?
   assignedAdvocate       String?
+  feesPaid               Decimal   @default(0) @db.Decimal(12, 2)
   urgency                String    @default("Normal") // Normal, High, Urgent
   status                 String    @default("Waiting") // Waiting, In Consultation, Completed, Rescheduled
   notes                  String?

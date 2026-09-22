@@ -24,25 +24,6 @@ export const colors = {
   borderStrong: '#CBD5E1',
   borderFocus: '#0F1E36',
 
-  // Status Colors (Subtle & high contrast)
-  status: {
-    waitingBg: '#FEF3C7',
-    waitingText: '#92400E',
-    waitingBorder: '#FDE68A',
-    
-    inConsultationBg: '#DBEAFE',
-    inConsultationText: '#1E40AF',
-    inConsultationBorder: '#BFDBFE',
-    
-    completedBg: '#D1FAE5',
-    completedText: '#065F46',
-    completedBorder: '#A7F3D0',
-    
-    rescheduledBg: '#F3F4F6',
-    rescheduledText: '#4B5563',
-    rescheduledBorder: '#E5E7EB',
-  },
-
   // Urgency
   urgency: {
     normalBg: '#F1F5F9',

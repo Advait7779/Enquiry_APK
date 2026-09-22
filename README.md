@@ -1,6 +1,6 @@
 # Advocate Desk
 
-Client intake, lobby queue, consultation status, contact actions, register search, preferences, and CSV export for a small advocate office.
+Client intake, today's client list, contact actions, register search, preferences, fees tracking, SMS notifications, and CSV export for a small advocate office.
 
 ## Project layout
 
@@ -73,6 +73,12 @@ Use the root `docker-compose.yml` as one Coolify Docker Compose resource.
 
 The Android app connects directly to the HTTPS backend. After login, it stores a time-limited signed session token; the configured password and signing secret remain only in the backend environment.
 
+### Optional client SMS notification
+
+New-client SMS notifications are sent only by the backend so the provider key never enters the APK. Keep `SMS_NOTIFICATION_URL` empty to disable SMS. To enable it, paste the complete approved provider URL into this single backend environment variable. The backend automatically replaces an existing `number` or `phone` query parameter with the new client's 10-digit mobile number.
+
+URL parameters may use `{phone}`, `{name}`, `{purpose}`, and `{feesPaid}` placeholders. Use placeholders only when they comply with the approved provider template. If the provider is unavailable, the client record is still saved and the failure is logged without exposing the full mobile number or complete URL.
+
 ### Production requirements
 
 - Configure automatic PostgreSQL backups in Coolify/Hostinger and test a restore.
@@ -80,7 +86,7 @@ The Android app connects directly to the HTTPS backend. After login, it stores a
 - Rotate `API_KEY` after any suspected server-secret exposure.
 - Rotate `LOGIN_PASSWORD` and `AUTH_SECRET` after any suspected account or token exposure.
 - Expose only the backend through HTTPS; keep PostgreSQL private.
-- Deletions are soft deletes and create audit records; database backups remain the disaster-recovery mechanism.
+- Client records cannot be deleted through the app or API; database backups remain the disaster-recovery mechanism.
 
 ## Build an Android APK later
 
@@ -100,7 +106,6 @@ The `preview` profile in `mobile/eas.json` produces an installable release APK. 
 
 - Arrival times and Today/Month/Year boundaries are assigned by the server using the configured office timezone offset, not device clocks.
 - Lobby data refreshes every 10 seconds; register and detail data refresh every 15 seconds while visible.
-- Concurrent status changes and deletes use record versions and return a conflict instead of silently overwriting another device.
 - Register search and date filtering are paginated on the server.
 - CSV exports stream from the server instead of loading the complete register into app memory.
-- Removed records stay out of active screens while a database audit entry is retained.
+- Fees paid are recorded with each new client and included in client details and CSV exports.

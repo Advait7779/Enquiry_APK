@@ -14,7 +14,6 @@ const DATA_DIR = path.dirname(DATA_FILE);
 export interface EnquiryFilter {
   date?: string;
   search?: string;
-  status?: string;
   start?: string;
   end?: string;
 }
@@ -31,13 +30,6 @@ interface StoreData {
   clients: IClient[];
   enquiries: IEnquiry[];
   auditLogs: StoreAuditLog[];
-}
-
-export class StaleRecordError extends Error {
-  constructor() {
-    super('This client record changed on another device. The latest version has been loaded; review it and try again.');
-    this.name = 'StaleRecordError';
-  }
 }
 
 function loadStore(): StoreData {
@@ -58,6 +50,7 @@ function loadStore(): StoreData {
       })),
       enquiries: (parsed.enquiries || []).map((enquiry: any) => ({
         ...enquiry,
+        feesPaid: Number(enquiry.feesPaid ?? 0),
         entryTime: new Date(enquiry.entryTime),
         consultationStartTime: enquiry.consultationStartTime ? new Date(enquiry.consultationStartTime) : null,
         consultationEndTime: enquiry.consultationEndTime ? new Date(enquiry.consultationEndTime) : null,
@@ -100,7 +93,6 @@ function addStoreAudit(
 
 function buildPrismaWhere(filter?: EnquiryFilter): any {
   const where: any = { deletedAt: null };
-  if (filter?.status && filter.status !== 'All') where.status = filter.status;
   if (filter?.search) {
     where.OR = [
       { fullName: { contains: filter.search, mode: 'insensitive' } },
@@ -124,9 +116,6 @@ function buildPrismaWhere(filter?: EnquiryFilter): any {
 
 function filterStoreEnquiries(enquiries: IEnquiry[], filter?: EnquiryFilter): IEnquiry[] {
   let list = enquiries.filter((enquiry) => !enquiry.deletedAt);
-  if (filter?.status && filter.status !== 'All') {
-    list = list.filter((enquiry) => enquiry.status.toLowerCase() === filter.status?.toLowerCase());
-  }
   if (filter?.search) {
     const query = filter.search.toLowerCase().trim();
     list = list.filter((enquiry) =>
@@ -241,6 +230,7 @@ export const dbService = {
     purpose: string;
     caseNumber?: string;
     assignedAdvocate?: string;
+    feesPaid?: number;
     urgency?: 'Normal' | 'High' | 'Urgent';
   }): Promise<IEnquiry> {
     const entryTime = new Date();
@@ -253,13 +243,18 @@ export const dbService = {
             purpose: data.purpose,
             caseNumber: data.caseNumber || null,
             assignedAdvocate: data.assignedAdvocate || null,
+            feesPaid: data.feesPaid ?? 0,
             urgency: data.urgency || 'Normal',
             status: 'Waiting',
             entryTime,
           },
         });
         await transaction.auditLog.create({
-          data: { enquiryId: enquiry.id, action: 'CREATED', changes: { status: 'Waiting' } },
+          data: {
+            enquiryId: enquiry.id,
+            action: 'CREATED',
+            changes: { feesPaid: data.feesPaid ?? 0 },
+          },
         });
         return enquiry;
       });
@@ -276,6 +271,7 @@ export const dbService = {
       purpose: data.purpose,
       caseNumber: data.caseNumber || null,
       assignedAdvocate: data.assignedAdvocate || 'General Advocate Desk',
+      feesPaid: data.feesPaid ?? 0,
       urgency: data.urgency || 'Normal',
       status: 'Waiting',
       entryTime,
@@ -286,84 +282,9 @@ export const dbService = {
       updatedAt: now,
     };
     store.enquiries.unshift(enquiry);
-    addStoreAudit(store, enquiry.id, 'CREATED', { status: 'Waiting' });
+    addStoreAudit(store, enquiry.id, 'CREATED', { feesPaid: data.feesPaid ?? 0 });
     saveStore(store);
     return enquiry;
-  },
-
-  async updateEnquiryStatus(
-    id: string,
-    status: IEnquiry['status'],
-    expectedUpdatedAt: Date,
-  ): Promise<IEnquiry | null> {
-    if (usePrisma && prisma) {
-      return prisma.$transaction(async (transaction) => {
-        const now = new Date();
-        const updateData: any = { status, updatedAt: now };
-        if (status === 'In Consultation') updateData.consultationStartTime = now;
-        if (status === 'Completed') updateData.consultationEndTime = now;
-        const result = await transaction.enquiry.updateMany({
-          where: { id, deletedAt: null, updatedAt: expectedUpdatedAt },
-          data: updateData,
-        });
-        if (result.count === 0) {
-          const exists = await transaction.enquiry.findFirst({ where: { id, deletedAt: null } });
-          if (exists) throw new StaleRecordError();
-          return null;
-        }
-        const updated = await transaction.enquiry.findUnique({ where: { id } });
-        await transaction.auditLog.create({
-          data: { enquiryId: id, action: 'STATUS_CHANGED', changes: { status } },
-        });
-        return updated as unknown as IEnquiry;
-      });
-    }
-
-    const store = loadStore();
-    const index = store.enquiries.findIndex((enquiry) => enquiry.id === id && !enquiry.deletedAt);
-    if (index === -1) return null;
-    const enquiry = store.enquiries[index];
-    if (new Date(enquiry.updatedAt).getTime() !== expectedUpdatedAt.getTime()) throw new StaleRecordError();
-    const now = new Date();
-    enquiry.status = status;
-    enquiry.updatedAt = now;
-    if (status === 'In Consultation' && !enquiry.consultationStartTime) enquiry.consultationStartTime = now;
-    if (status === 'Completed') enquiry.consultationEndTime = now;
-    addStoreAudit(store, id, 'STATUS_CHANGED', { status });
-    saveStore(store);
-    return enquiry;
-  },
-
-  async deleteEnquiry(id: string, expectedUpdatedAt: Date): Promise<boolean> {
-    if (usePrisma && prisma) {
-      return prisma.$transaction(async (transaction) => {
-        const deletedAt = new Date();
-        const result = await transaction.enquiry.updateMany({
-          where: { id, deletedAt: null, updatedAt: expectedUpdatedAt },
-          data: { deletedAt, updatedAt: deletedAt },
-        });
-        if (result.count === 0) {
-          const exists = await transaction.enquiry.findFirst({ where: { id, deletedAt: null } });
-          if (exists) throw new StaleRecordError();
-          return false;
-        }
-        await transaction.auditLog.create({
-          data: { enquiryId: id, action: 'SOFT_DELETED', changes: { deletedAt: deletedAt.toISOString() } },
-        });
-        return true;
-      });
-    }
-
-    const store = loadStore();
-    const enquiry = store.enquiries.find((item) => item.id === id && !item.deletedAt);
-    if (!enquiry) return false;
-    if (new Date(enquiry.updatedAt).getTime() !== expectedUpdatedAt.getTime()) throw new StaleRecordError();
-    const deletedAt = new Date();
-    enquiry.deletedAt = deletedAt;
-    enquiry.updatedAt = deletedAt;
-    addStoreAudit(store, id, 'SOFT_DELETED', { deletedAt: deletedAt.toISOString() });
-    saveStore(store);
-    return true;
   },
 
   async getTodayStats(requestedStart?: Date, requestedEnd?: Date) {
@@ -372,16 +293,12 @@ export const dbService = {
     const end = requestedEnd || officeToday.end;
     if (usePrisma && prisma) {
       const where = { deletedAt: null, entryTime: { gte: start, lt: end } };
-      const [byStatus, urgent] = await Promise.all([
-        prisma.enquiry.groupBy({ by: ['status'], where, _count: { _all: true } }),
+      const [totalToday, urgent] = await Promise.all([
+        prisma.enquiry.count({ where }),
         prisma.enquiry.count({ where: { ...where, urgency: 'Urgent' } }),
       ]);
-      const count = (status: string) => byStatus.find((item) => item.status === status)?._count._all || 0;
       return {
-        totalToday: byStatus.reduce((total, item) => total + item._count._all, 0),
-        waiting: count('Waiting'),
-        inConsultation: count('In Consultation'),
-        completed: count('Completed'),
+        totalToday,
         urgent,
       };
     }
@@ -391,9 +308,6 @@ export const dbService = {
     );
     return {
       totalToday: today.length,
-      waiting: today.filter((enquiry) => enquiry.status === 'Waiting').length,
-      inConsultation: today.filter((enquiry) => enquiry.status === 'In Consultation').length,
-      completed: today.filter((enquiry) => enquiry.status === 'Completed').length,
       urgent: today.filter((enquiry) => enquiry.urgency === 'Urgent').length,
     };
   },

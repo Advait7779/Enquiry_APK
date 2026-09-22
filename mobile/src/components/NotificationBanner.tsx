@@ -60,10 +60,6 @@ export const NotificationBanner: React.FC = () => {
     switch (current.type) {
       case 'urgent':
         return 'flash' as const;
-      case 'cabin':
-        return 'checkmark-circle' as const;
-      case 'wait':
-        return 'hourglass' as const;
       default:
         return 'notifications' as const;
     }

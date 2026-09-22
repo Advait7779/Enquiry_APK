@@ -6,7 +6,7 @@ const STORAGE_KEY = 'advocate-desk-notifications-list-v1';
 
 export interface AppNotification {
   id: string;
-  type: 'urgent' | 'normal' | 'cabin' | 'wait';
+  type: 'urgent' | 'normal';
   title: string;
   message: string;
   timestamp: number;
@@ -26,7 +26,10 @@ async function loadPersisted(): Promise<void> {
   try {
     const saved = await AsyncStorage.getItem(STORAGE_KEY);
     if (saved) {
-      notificationsList = JSON.parse(saved);
+      const parsed = JSON.parse(saved) as AppNotification[];
+      notificationsList = Array.isArray(parsed)
+        ? parsed.filter((item) => item?.type === 'urgent' || item?.type === 'normal')
+        : [];
     }
     isLoaded = true;
     notifyAll();
@@ -104,10 +107,10 @@ export const notificationService = {
 
   // 1. New Client Intake (Urgent or Normal)
   async notifyNewClient(name: string, purpose: string, isUrgent: boolean, soundEnabled = true): Promise<void> {
-    const title = isUrgent ? '⚡ URGENT: Client Arrival' : '🔔 New Client in Lobby';
+    const title = isUrgent ? '⚡ URGENT: Client Entry' : '🔔 New Client Recorded';
     const message = isUrgent
-      ? `${name} has arrived for ${purpose}. Priority attention needed.`
-      : `${name} is waiting in the lobby (${purpose}).`;
+      ? `${name} was recorded for ${purpose}. Priority attention needed.`
+      : `${name} was added for ${purpose}.`;
 
     // Vibration
     if (soundEnabled) {
@@ -125,56 +128,6 @@ export const notificationService = {
     const item: AppNotification = {
       id: `${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
       type: isUrgent ? 'urgent' : 'normal',
-      title,
-      message,
-      timestamp: Date.now(),
-    };
-
-    notificationsList = [item, ...notificationsList];
-    await persist();
-    notifyAll(item);
-  },
-
-  // 2. Cabin Free / Consultation Completed
-  async notifyCabinAvailable(clientName: string, soundEnabled = true): Promise<void> {
-    const title = '✅ Cabin Available';
-    const message = `Consultation with ${clientName} completed. Ready for next visitor.`;
-
-    if (soundEnabled) {
-      try {
-        Vibration.vibrate(100);
-        await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
-      } catch {}
-    }
-
-    const item: AppNotification = {
-      id: `${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
-      type: 'cabin',
-      title,
-      message,
-      timestamp: Date.now(),
-    };
-
-    notificationsList = [item, ...notificationsList];
-    await persist();
-    notifyAll(item);
-  },
-
-  // 3. Long Wait Alert (> 30 Mins)
-  async notifyLongWait(clientName: string, minutes: number, soundEnabled = true): Promise<void> {
-    const title = '⏳ Lobby Wait Alert';
-    const message = `${clientName} has been waiting in the lobby for ${minutes} minutes.`;
-
-    if (soundEnabled) {
-      try {
-        Vibration.vibrate([0, 180, 100, 180]);
-        await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning).catch(() => {});
-      } catch {}
-    }
-
-    const item: AppNotification = {
-      id: `${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
-      type: 'wait',
       title,
       message,
       timestamp: Date.now(),

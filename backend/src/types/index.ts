@@ -20,6 +20,7 @@ export interface IEnquiry {
   purpose: string;
   caseNumber?: string | null;
   assignedAdvocate?: string | null;
+  feesPaid: number;
   urgency: UrgencyLevel;
   status: EnquiryStatus;
   notes?: string | null;
@@ -37,10 +38,7 @@ export interface CreateEnquiryDTO {
   purpose: string;
   caseNumber?: string;
   assignedAdvocate?: string;
+  feesPaid?: number;
   urgency?: UrgencyLevel;
   notes?: string;
-}
-
-export interface UpdateEnquiryStatusDTO {
-  status: EnquiryStatus;
 }

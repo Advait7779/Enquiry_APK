@@ -14,9 +14,15 @@
       "versionCode": 1,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#0F1E36"
+        "backgroundColor": "#FFFFFF"
       },
-      "package": "com.advocate.enquiry"
+      "package": "com.advocate.enquiry",
+      "permissions": [
+        "android.permission.RECORD_AUDIO",
+        "android.permission.MODIFY_AUDIO_SETTINGS",
+        "android.permission.FOREGROUND_SERVICE",
+        "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png",
@@ -37,6 +43,11 @@
       ],
       "expo-audio",
       "expo-asset"
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "e2d5eca5-3b1f-4862-9a69-8acdae9a039b"
+      }
+    }
   }
 }

@@ -89,34 +89,6 @@ export const ClockSvg: React.FC<IconProps> = ({ size = 16, color = colors.accent
   </Svg>
 );
 
-// 9. Waiting in Lobby (Hourglass / Amber)
-export const HourglassSvg: React.FC<IconProps> = ({ size = 16, color = colors.status.waitingText }) => (
-  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-    <Path d="M6 3H18M6 21H18M7 3L12 12M17 3L12 12M7 21L12 12M17 21L12 12" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-  </Svg>
-);
-
-// 10. In Consultation (Chat / Royal Blue)
-export const ConsultationSvg: React.FC<IconProps> = ({ size = 16, color = colors.status.inConsultationText }) => (
-  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-    <Path
-      d="M21 11.5C21.0034 12.8199 20.6951 14.1219 20.1 15.3C19.3944 16.7118 18.3098 17.8992 16.9674 18.7293C15.6251 19.5594 14.0782 19.9994 12.5 20C11.1801 20.0035 9.87812 19.6951 8.7 19.1L3 21L4.9 15.3C4.30493 14.1219 3.99656 12.8199 4 11.5C4.00061 9.92179 4.44061 8.37488 5.27072 7.03258C6.10083 5.69028 7.28825 4.6056 8.7 3.90003C9.87812 3.30496 11.1801 2.99659 12.5 3.00003H13C15.0843 3.11502 17.053 3.99479 18.5291 5.47089C20.0052 6.94699 20.885 8.91568 21 11V11.5Z"
-      stroke={color}
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    />
-  </Svg>
-);
-
-// 11. Completed (Checkmark / Emerald Green)
-export const CompletedCheckSvg: React.FC<IconProps> = ({ size = 16, color = colors.status.completedText }) => (
-  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-    <Circle cx="12" cy="12" r="9" stroke={color} strokeWidth="2" fill="none" />
-    <Path d="M8 12.5L10.5 15L16 9.5" stroke={color} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
-  </Svg>
-);
-
 // 12. Chamber Shield Emblem (Trust & Security)
 export const ShieldCheckSvg: React.FC<IconProps> = ({ size = 22, color = colors.accent }) => (
   <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
@@ -179,14 +151,6 @@ export const FolderCaseSvg: React.FC<IconProps> = ({ size = 16, color = colors.t
       strokeLinecap="round"
       strokeLinejoin="round"
     />
-  </Svg>
-);
-
-// 18. Delete / Trash (Danger Crimson)
-export const TrashSvg: React.FC<IconProps> = ({ size = 16, color = colors.danger }) => (
-  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-    <Path d="M3 6H21M19 6V20C19 21.1 18.1 22 17 22H7C5.9 22 5 21.1 5 20V6M8 6V4C8 2.9 8.9 2 10 2H14C15.1 2 16 2.9 16 4V6" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-    <Path d="M10 11V17M14 11V17" stroke={color} strokeWidth="2" strokeLinecap="round" />
   </Svg>
 );
 

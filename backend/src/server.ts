@@ -11,6 +11,7 @@ import { disconnectDatabase, initDatabase } from './config/db';
 import enquiryRoutes from './routes/enquiryRoutes';
 import statsRoutes from './routes/statsRoutes';
 import { getOfficeTimeOffsetMinutes } from './utils/time';
+import { validateSmsConfiguration } from './services/smsService';
 import {
   authenticate,
   createAccessToken,
@@ -43,7 +44,7 @@ app.use(cors({
     }
     callback(new Error('Origin is not allowed by CORS'));
   },
-  methods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
+  methods: ['GET', 'POST', 'PATCH', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'x-api-key'],
   maxAge: 86400
 }));
@@ -175,6 +176,7 @@ async function startServer(): Promise<void> {
     throw new Error('API_KEY must be set to a random value of at least 24 characters in production');
   }
   validateAuthConfiguration(isProduction);
+  validateSmsConfiguration(isProduction);
   getOfficeTimeOffsetMinutes();
 
   await initDatabase();
