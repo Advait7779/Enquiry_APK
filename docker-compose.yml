@@ -30,6 +30,7 @@ services:
       CORS_ORIGIN: ${CORS_ORIGIN:-}
       RATE_LIMIT_MAX: ${RATE_LIMIT_MAX:-1000}
       OFFICE_TIMEZONE_OFFSET_MINUTES: ${OFFICE_TIMEZONE_OFFSET_MINUTES:-330}
+      SMS_NOTIFICATION_URL: ${SMS_NOTIFICATION_URL:-}
     depends_on:
       database:
         condition: service_healthy
