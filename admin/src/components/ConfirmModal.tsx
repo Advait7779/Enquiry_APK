@@ -9,6 +9,7 @@ export interface ConfirmModalProps {
   subtitle?: string;
   message: React.ReactNode;
   confirmText?: string;
+  confirmIcon?: React.ReactNode;
   cancelText?: string;
   variant?: 'danger' | 'warning' | 'primary' | 'gold';
   badge?: {
@@ -33,6 +34,7 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
   subtitle = 'ADVOCATE BALASAHEB THOPATE CHAMBER',
   message,
   confirmText = 'Confirm',
+  confirmIcon,
   cancelText = 'Cancel',
   variant = 'danger',
   badge,
@@ -196,7 +198,10 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
                 <span>Processing...</span>
               </>
             ) : (
-              <span>{confirmText}</span>
+              <>
+                {confirmIcon}
+                <span>{confirmText}</span>
+              </>
             )}
           </button>
         </div>

@@ -14,6 +14,27 @@
   }
 }
 
+/* Prevent browser autofill from making dark inputs white / light blue */
+input:-webkit-autofill,
+input:-webkit-autofill:hover, 
+input:-webkit-autofill:focus, 
+input:-webkit-autofill:active {
+  -webkit-box-shadow: 0 0 0 1000px #0A1526 inset !important;
+  box-shadow: 0 0 0 1000px #0A1526 inset !important;
+  -webkit-text-fill-color: #ffffff !important;
+  color: #ffffff !important;
+  caret-color: #ffffff !important;
+  transition: background-color 50000s ease-in-out 0s !important;
+}
+
+/* Hide Microsoft Edge native password reveal and clear buttons to avoid dual icons & white overlay */
+input::-ms-reveal,
+input::-ms-clear {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+
 /* Custom scrollbars matching chamber theme */
 ::-webkit-scrollbar {
   width: 6px;

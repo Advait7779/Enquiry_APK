@@ -96,6 +96,18 @@ export function App() {
     );
   }
 
+  if (!isAuthenticated) {
+    return (
+      <LoginModal
+        isOpen={true}
+        onSuccess={() => {
+          setIsAuthenticated(true);
+          loadData();
+        }}
+      />
+    );
+  }
+
   return (
     <div className="min-h-screen bg-[#F4F6F9] font-sans text-[#0F172A] flex">
       {/* Left Sidebar (fixed on desktop, slideout on mobile) */}
@@ -162,15 +174,6 @@ export function App() {
           </p>
         </footer>
       </div>
-
-      {/* Login Authentication Modal */}
-      <LoginModal
-        isOpen={!isAuthenticated}
-        onSuccess={() => {
-          setIsAuthenticated(true);
-          loadData();
-        }}
-      />
 
       {/* Sign Out Confirmation Modal */}
       <LogoutConfirmModal
