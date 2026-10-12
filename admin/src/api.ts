@@ -39,7 +39,12 @@ async function readJson(res: Response): Promise<any> {
     localStorage.removeItem(USER_KEY);
     window.dispatchEvent(new Event('admin-auth-expired'));
   }
-  if (!res.ok) throw new Error(data?.message || `Request failed with HTTP ${res.status}`);
+  if (!res.ok) {
+    const validationErrors = Array.isArray(data?.errors)
+      ? data.errors.filter((error: unknown): error is string => typeof error === 'string').join('; ')
+      : '';
+    throw new Error(data?.message || validationErrors || `Request failed with HTTP ${res.status}`);
+  }
   return data;
 }
 

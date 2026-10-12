@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import {
   UserPlus,
   Briefcase,
@@ -126,6 +127,10 @@ export const LawyersTab: React.FC<LawyersTabProps> = ({ lawyers, onRefresh }) =>
 
     if (!username.trim()) {
       setFormError('Account username is required.');
+      return;
+    }
+    if (!/^[a-zA-Z0-9._-]{3,50}$/.test(username.trim())) {
+      setFormError('Username must be 3-50 characters and use only letters, numbers, dots, underscores, or hyphens.');
       return;
     }
     if (!editingLawyer && !password) {
@@ -442,9 +447,11 @@ export const LawyersTab: React.FC<LawyersTabProps> = ({ lawyers, onRefresh }) =>
                             placeholder="e.g. omkar"
                             value={username}
                             onChange={(e) => setUsername(e.target.value)}
+                            maxLength={50}
                             className="w-full bg-white border border-[#CBD5E1] rounded-lg px-3 py-1.5 text-xs text-[#0F172A] font-mono focus:outline-none focus:ring-2 focus:ring-[#0F1E36]"
                             required
                           />
+                          <p className="mt-1 text-[10px] text-[#94A3B8]">3-50 characters: letters, numbers, . _ -</p>
                         </div>
 
                         {/* Account Password */}
