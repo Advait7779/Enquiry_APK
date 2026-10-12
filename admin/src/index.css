@@ -14,11 +14,24 @@
   }
 }
 
-/* Prevent browser autofill from making dark inputs white / light blue */
+/* Ensure all standard white inputs remain clean white with dark text when autofilled or autopasted */
 input:-webkit-autofill,
 input:-webkit-autofill:hover, 
 input:-webkit-autofill:focus, 
 input:-webkit-autofill:active {
+  -webkit-box-shadow: 0 0 0 1000px #ffffff inset !important;
+  box-shadow: 0 0 0 1000px #ffffff inset !important;
+  -webkit-text-fill-color: #0F172A !important;
+  color: #0F172A !important;
+  caret-color: #0F172A !important;
+  transition: background-color 50000s ease-in-out 0s !important;
+}
+
+/* Only dark-themed inputs (like the admin login screen) stay dark on autofill */
+.dark-input:-webkit-autofill,
+.dark-input:-webkit-autofill:hover,
+.dark-input:-webkit-autofill:focus,
+.dark-input:-webkit-autofill:active {
   -webkit-box-shadow: 0 0 0 1000px #0A1526 inset !important;
   box-shadow: 0 0 0 1000px #0A1526 inset !important;
   -webkit-text-fill-color: #ffffff !important;

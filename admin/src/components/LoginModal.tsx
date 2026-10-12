@@ -110,7 +110,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onSuccess }) => 
                 color: '#ffffff',
                 WebkitTextFillColor: '#ffffff',
               }}
-              className="w-full bg-[#0A1526] border border-[#1E293B] rounded-xl px-3.5 py-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-[#C89B3C] transition"
+              className="w-full dark-input bg-[#0A1526] border border-[#1E293B] rounded-xl px-3.5 py-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-[#C89B3C] transition"
               required
             />
           </div>
@@ -140,7 +140,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onSuccess }) => 
                   color: '#ffffff',
                   WebkitTextFillColor: '#ffffff',
                 }}
-                className="w-full bg-[#0A1526] border border-[#1E293B] rounded-xl pl-3.5 pr-11 py-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-[#C89B3C] transition font-mono tracking-wide"
+                className="w-full dark-input bg-[#0A1526] border border-[#1E293B] rounded-xl pl-3.5 pr-11 py-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-[#C89B3C] transition font-mono tracking-wide"
                 required
               />
               <button

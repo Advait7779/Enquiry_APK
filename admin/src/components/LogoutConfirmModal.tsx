@@ -1,4 +1,5 @@
 import React, { useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { LogOut, X } from 'lucide-react';
 
 interface LogoutConfirmModalProps {
@@ -27,9 +28,9 @@ export const LogoutConfirmModal: React.FC<LogoutConfirmModalProps> = ({
 
   if (!isOpen) return null;
 
-  return (
+  return createPortal(
     <div
-      className="fixed inset-0 z-[60] bg-[#0A1526]/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4"
+      className="fixed inset-0 z-[100] bg-[#0A1526]/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4"
       onClick={(e) => {
         if (e.target === e.currentTarget) {
           onCancel();
@@ -92,6 +93,7 @@ export const LogoutConfirmModal: React.FC<LogoutConfirmModalProps> = ({
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };

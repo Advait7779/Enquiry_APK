@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import {
   UserPlus,
   Briefcase,
@@ -327,8 +328,9 @@ export const LawyersTab: React.FC<LawyersTabProps> = ({ lawyers, onRefresh }) =>
       )}
 
       {/* Add / Edit Lawyer Modal */}
-      {showAddModal && (
-        <div className="fixed inset-0 z-50 bg-[#0A1526]/80 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4">
+      {showAddModal &&
+        createPortal(
+          <div className="fixed inset-0 z-[100] bg-[#0A1526]/80 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4">
           <div role="dialog" aria-modal="true" aria-labelledby="lawyer-dialog-title" className="bg-white rounded-2xl max-w-4xl w-full p-4 sm:p-7 md:p-8 shadow-2xl border border-[#CBD5E1] text-[#0F172A] max-h-[92vh] flex flex-col">
             <div className="flex items-center justify-between pb-3.5 border-b border-[#E2E8F0]">
               <div className="flex items-center space-x-2.5">
@@ -601,7 +603,8 @@ export const LawyersTab: React.FC<LawyersTabProps> = ({ lawyers, onRefresh }) =>
               </div>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Themed Confirmation Modal */}

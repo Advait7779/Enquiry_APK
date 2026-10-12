@@ -1,4 +1,5 @@
 import React, { useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { X, AlertTriangle, Trash2, ShieldCheck, Info } from 'lucide-react';
 
 export interface ConfirmModalProps {
@@ -75,9 +76,9 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
     defaultIcon = <Info className="w-7 h-7 text-[#B48328]" />;
   }
 
-  return (
+  return createPortal(
     <div
-      className="fixed inset-0 z-[60] bg-[#0A1526]/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4"
+      className="fixed inset-0 z-[100] bg-[#0A1526]/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4"
       onClick={(e) => {
         if (e.target === e.currentTarget && !isLoading) {
           onCancel();
@@ -206,6 +207,7 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
