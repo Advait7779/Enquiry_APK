@@ -875,7 +875,12 @@ export const dbService = {
     return true;
   },
 
-  async getFeesSummary(start?: Date, end?: Date, lawyerId?: string): Promise<FeeSummary> {
+  async getFeesSummary(
+    start?: Date,
+    end?: Date,
+    lawyerId?: string,
+    breakdownPage?: { page: number; pageSize: number }
+  ): Promise<FeeSummary> {
     const lawyers = await this.getLawyers();
     const officeToday = getOfficePeriodRange('today');
     const officeMonth = getOfficePeriodRange('month');
@@ -897,7 +902,34 @@ export const dbService = {
         prisma.enquiry.count({ where: rangeWhere }),
       ]);
 
-      const breakdownLawyers = lawyerId ? lawyers.filter((lawyer) => lawyer.id === lawyerId) : lawyers;
+      const allBreakdownLawyers = lawyerId ? lawyers.filter((lawyer) => lawyer.id === lawyerId) : lawyers;
+      let breakdownLawyers = allBreakdownLawyers;
+      if (breakdownPage) {
+        const [assignedGroups, legacyGroups] = await Promise.all([
+          prisma.enquiry.groupBy({
+            by: ['lawyerId'],
+            where: { ...rangeWhere, lawyerId: { not: null } },
+            _max: { entryTime: true },
+          }),
+          prisma.enquiry.groupBy({
+            by: ['assignedAdvocate'],
+            where: { ...rangeWhere, lawyerId: null, assignedAdvocate: { not: null } },
+            _max: { entryTime: true },
+          }),
+        ]);
+        const lastById = new Map(assignedGroups.map((group) => [group.lawyerId, group._max.entryTime?.getTime() || 0]));
+        const lastByName = new Map<string, number>();
+        for (const group of legacyGroups) {
+          if (!group.assignedAdvocate) continue;
+          const name = group.assignedAdvocate.toLowerCase();
+          lastByName.set(name, Math.max(lastByName.get(name) || 0, group._max.entryTime?.getTime() || 0));
+        }
+        breakdownLawyers = [...allBreakdownLawyers]
+          .sort((a, b) => Math.max(lastById.get(b.id) || 0, lastByName.get(b.name.toLowerCase()) || 0)
+            - Math.max(lastById.get(a.id) || 0, lastByName.get(a.name.toLowerCase()) || 0)
+            || a.name.localeCompare(b.name))
+          .slice((breakdownPage.page - 1) * breakdownPage.pageSize, breakdownPage.page * breakdownPage.pageSize);
+      }
       const lawyerBreakdown: LawyerFeeBreakdown[] = await Promise.all(breakdownLawyers.map(async (lawyer) => {
         const lawyerWhere: any = {
           deletedAt: null,
@@ -935,6 +967,12 @@ export const dbService = {
         monthCollected: Number(monthAggregate._sum.feesPaid || 0),
         totalTransactions,
         lawyerBreakdown,
+        ...(breakdownPage ? { lawyerBreakdownPagination: {
+          page: breakdownPage.page,
+          pageSize: breakdownPage.pageSize,
+          total: allBreakdownLawyers.length,
+          totalPages: Math.max(1, Math.ceil(allBreakdownLawyers.length / breakdownPage.pageSize)),
+        } } : {}),
       };
     }
 
@@ -952,7 +990,27 @@ export const dbService = {
       : enquiries;
     const todayEnquiries = enquiries.filter((e) => new Date(e.entryTime) >= officeToday.start && new Date(e.entryTime) < officeToday.end);
     const monthEnquiries = enquiries.filter((e) => new Date(e.entryTime) >= officeMonth.start && new Date(e.entryTime) < officeMonth.end);
-    const breakdownLawyers = lawyerId ? lawyers.filter((lawyer) => lawyer.id === lawyerId) : lawyers;
+    const allBreakdownLawyers = lawyerId ? lawyers.filter((lawyer) => lawyer.id === lawyerId) : lawyers;
+    const latestById = new Map<string, number>();
+    const latestByName = new Map<string, number>();
+    if (breakdownPage) {
+      for (const entry of rangeEnquiries) {
+        const time = new Date(entry.entryTime).getTime();
+        if (entry.lawyerId) {
+          latestById.set(entry.lawyerId, Math.max(latestById.get(entry.lawyerId) || 0, time));
+        } else if (entry.assignedAdvocate) {
+          const name = entry.assignedAdvocate.toLowerCase();
+          latestByName.set(name, Math.max(latestByName.get(name) || 0, time));
+        }
+      }
+    }
+    const breakdownLawyers = breakdownPage
+      ? [...allBreakdownLawyers]
+        .sort((a, b) => Math.max(latestById.get(b.id) || 0, latestByName.get(b.name.toLowerCase()) || 0)
+          - Math.max(latestById.get(a.id) || 0, latestByName.get(a.name.toLowerCase()) || 0)
+          || a.name.localeCompare(b.name))
+        .slice((breakdownPage.page - 1) * breakdownPage.pageSize, breakdownPage.page * breakdownPage.pageSize)
+      : allBreakdownLawyers;
     const lawyerBreakdown = breakdownLawyers.map((lawyer) => {
       const rangeItems = rangeEnquiries.filter((e) => belongsToLawyer(e, lawyer));
       const todayItems = todayEnquiries.filter((e) => belongsToLawyer(e, lawyer));
@@ -976,6 +1034,12 @@ export const dbService = {
       monthCollected: monthEnquiries.reduce((sum, e) => sum + Number(e.feesPaid || 0), 0),
       totalTransactions: rangeEnquiries.length,
       lawyerBreakdown,
+      ...(breakdownPage ? { lawyerBreakdownPagination: {
+        page: breakdownPage.page,
+        pageSize: breakdownPage.pageSize,
+        total: allBreakdownLawyers.length,
+        totalPages: Math.max(1, Math.ceil(allBreakdownLawyers.length / breakdownPage.pageSize)),
+      } } : {}),
     };
   },
 

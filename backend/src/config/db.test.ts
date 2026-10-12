@@ -25,6 +25,17 @@ test('deactivation preserves lawyer fee history and deletion with records is ref
     assert.equal(summary.lawyerBreakdown.find((item) => item.lawyerId === lawyer.id)?.totalCollected, 750);
     assert.equal(summary.lawyerBreakdown.find((item) => item.lawyerId === lawyer.id)?.lastFeeAt, new Date(enquiry.entryTime).toISOString());
     assert.equal(summary.lawyerBreakdown.find((item) => item.lawyerId === lawyer.id)?.isActive, false);
+    await dbService.createLawyer({
+      name: 'Adv. Shah', username: 'shah', password: 'Strong-Pass-456', assignedTasks: [],
+    });
+    const firstPage = await dbService.getFeesSummary(undefined, undefined, undefined, { page: 1, pageSize: 1 });
+    const secondPage = await dbService.getFeesSummary(undefined, undefined, undefined, { page: 2, pageSize: 1 });
+    assert.equal(firstPage.totalCollected, 750);
+    assert.equal(firstPage.lawyerBreakdownPagination?.total, 2);
+    assert.equal(firstPage.lawyerBreakdownPagination?.totalPages, 2);
+    assert.deepEqual(firstPage.lawyerBreakdown.map((item) => item.lawyerId), [lawyer.id]);
+    assert.deepEqual(secondPage.lawyerBreakdown.map((item) => item.lawyerName), ['Adv. Shah']);
+    assert.equal(secondPage.totalCollected, 750);
     await assert.rejects(() => dbService.deleteLawyer(lawyer.id), /has client records/);
   } finally {
     rmSync(directory, { recursive: true, force: true });

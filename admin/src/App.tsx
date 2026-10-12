@@ -44,16 +44,16 @@ export function App() {
     try {
       const [sum, law] = await Promise.all([
         adminApi.getFeesSummary(),
-        adminApi.getLawyers(),
+        activeTab === 'overview' ? Promise.resolve(null) : adminApi.getLawyers(),
       ]);
       setSummary(sum);
-      setLawyers(law);
+      if (law) setLawyers(law);
     } catch (error: any) {
       setLoadError(error.message || 'Could not refresh chamber data.');
     } finally {
       setIsRefreshing(false);
     }
-  }, []);
+  }, [activeTab]);
 
   const handleRefresh = useCallback(() => {
     setRefreshKey((current) => current + 1);

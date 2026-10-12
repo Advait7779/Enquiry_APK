@@ -15,6 +15,8 @@ const financeQuerySchema = z.object({
   search: z.string().trim().max(200).optional(),
   page: z.coerce.number().int().min(1).max(1_000_000).default(1),
   pageSize: z.coerce.number().int().min(1).max(200).default(50),
+  breakdownPage: z.coerce.number().int().min(1).max(1_000_000).default(1),
+  breakdownPageSize: z.coerce.number().int().min(1).max(200).optional(),
 }).superRefine((value, ctx) => {
   if (Boolean(value.from) !== Boolean(value.to)) ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Both from and to dates are required' });
   if (Boolean(value.start) !== Boolean(value.end)) ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Both start and end times are required' });
@@ -71,6 +73,7 @@ export const financeController = {
         range.start ? new Date(range.start) : undefined,
         range.end ? new Date(range.end) : undefined,
         query.lawyerId,
+        query.breakdownPageSize ? { page: query.breakdownPage, pageSize: query.breakdownPageSize } : undefined,
       );
       res.json({ success: true, data: summary });
     } catch (error: any) {

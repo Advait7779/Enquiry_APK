@@ -16,6 +16,8 @@ export interface LedgerFilters {
   search?: string;
   page?: number;
   pageSize?: number;
+  breakdownPage?: number;
+  breakdownPageSize?: number;
 }
 
 function buildQuery(filters: LedgerFilters): string {
@@ -103,8 +105,8 @@ export const adminApi = {
     }
   },
 
-  async getFeesSummary(period?: string, lawyerId?: string): Promise<FeeSummary> {
-    const query = buildQuery({ period: period as LedgerFilters['period'], lawyerId });
+  async getFeesSummary(period?: string, lawyerId?: string, breakdownPage = 1, breakdownPageSize = 5): Promise<FeeSummary> {
+    const query = buildQuery({ period: period as LedgerFilters['period'], lawyerId, breakdownPage, breakdownPageSize });
     const data = await readJson(await fetch(`${API_BASE}/admin/fees/summary${query}`, { headers: this.headers() }));
     return data.data;
   },

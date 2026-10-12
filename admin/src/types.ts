@@ -43,6 +43,7 @@ export interface FeeSummary {
   monthCollected: number;
   totalTransactions: number;
   lawyerBreakdown: LawyerFeeBreakdown[];
+  lawyerBreakdownPagination?: { page: number; pageSize: number; total: number; totalPages: number };
 }
 
 export interface NotificationSettings {

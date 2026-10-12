@@ -30,11 +30,13 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({ summary, loading, onSe
   const monthTotal = summary?.monthCollected || 0;
   const grandTotal = summary?.totalCollected || 0;
   const associates = (summary?.lawyerBreakdown || []).filter((lawyer) => lawyer.lawyerName !== 'General Advocate Desk');
-  const lawyersCount = associates.length;
-  const recentAssociates = [...associates]
-    .sort((a, b) => (Date.parse(b.lastFeeAt || '') || 0) - (Date.parse(a.lastFeeAt || '') || 0)
-      || a.lawyerName.localeCompare(b.lawyerName))
-    .slice(0, 5);
+  const lawyersCount = summary?.lawyerBreakdownPagination?.total ?? associates.length;
+  const recentAssociates = summary?.lawyerBreakdownPagination
+    ? associates
+    : [...associates]
+      .sort((a, b) => (Date.parse(b.lastFeeAt || '') || 0) - (Date.parse(a.lastFeeAt || '') || 0)
+        || a.lawyerName.localeCompare(b.lawyerName))
+      .slice(0, 5);
 
   return (
     <div className="space-y-6">
@@ -129,8 +131,8 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({ summary, loading, onSe
               Five most recently active junior lawyers and their fee totals
             </p>
           </div>
-          {associates.length > 5 && (
-            <span className="text-[11px] font-semibold text-[#475569]">Showing 5 of {associates.length}</span>
+          {lawyersCount > 5 && (
+            <span className="text-[11px] font-semibold text-[#475569]">Showing 5 of {lawyersCount}</span>
           )}
         </div>
 
