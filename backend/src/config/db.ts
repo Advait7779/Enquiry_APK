@@ -910,7 +910,7 @@ export const dbService = {
           ? { ...lawyerWhere, entryTime: { gte: start, lt: end } }
           : lawyerWhere;
         const [total, today, clientCount] = await prisma!.$transaction([
-          prisma!.enquiry.aggregate({ where: lawyerRangeWhere, _sum: { feesPaid: true } }),
+          prisma!.enquiry.aggregate({ where: lawyerRangeWhere, _sum: { feesPaid: true }, _max: { entryTime: true } }),
           prisma!.enquiry.aggregate({
             where: { ...lawyerWhere, entryTime: { gte: officeToday.start, lt: officeToday.end } },
             _sum: { feesPaid: true },
@@ -924,6 +924,7 @@ export const dbService = {
           totalCollected: Number(total._sum.feesPaid || 0),
           todayCollected: Number(today._sum.feesPaid || 0),
           clientCount,
+          lastFeeAt: total._max.entryTime?.toISOString() || null,
           assignedTasks: lawyer.assignedTasks,
         };
       }));
@@ -962,6 +963,10 @@ export const dbService = {
         totalCollected: rangeItems.reduce((sum, e) => sum + Number(e.feesPaid || 0), 0),
         todayCollected: todayItems.reduce((sum, e) => sum + Number(e.feesPaid || 0), 0),
         clientCount: rangeItems.length,
+        lastFeeAt: rangeItems.reduce<string | null>((latest, entry) => {
+          const entryTime = new Date(entry.entryTime).toISOString();
+          return !latest || entryTime > latest ? entryTime : latest;
+        }, null),
         assignedTasks: lawyer.assignedTasks,
       };
     });

@@ -14,7 +14,7 @@ test('deactivation preserves lawyer fee history and deletion with records is ref
       name: 'Adv. Rao', username: 'rao', password: 'Strong-Pass-123', assignedTasks: ['Property & Land Dispute'],
     });
     assert.equal('passwordHash' in lawyer, false);
-    await dbService.createEnquiry({
+    const enquiry = await dbService.createEnquiry({
       fullName: 'Asha Patil', contactNo: '9876543210', purpose: 'Property & Land Dispute',
       lawyerId: lawyer.id, feesPaid: 750,
     });
@@ -23,6 +23,7 @@ test('deactivation preserves lawyer fee history and deletion with records is ref
     const summary = await dbService.getFeesSummary();
     assert.equal(summary.totalCollected, 750);
     assert.equal(summary.lawyerBreakdown.find((item) => item.lawyerId === lawyer.id)?.totalCollected, 750);
+    assert.equal(summary.lawyerBreakdown.find((item) => item.lawyerId === lawyer.id)?.lastFeeAt, new Date(enquiry.entryTime).toISOString());
     assert.equal(summary.lawyerBreakdown.find((item) => item.lawyerId === lawyer.id)?.isActive, false);
     await assert.rejects(() => dbService.deleteLawyer(lawyer.id), /has client records/);
   } finally {

@@ -31,6 +31,10 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({ summary, loading, onSe
   const grandTotal = summary?.totalCollected || 0;
   const associates = (summary?.lawyerBreakdown || []).filter((lawyer) => lawyer.lawyerName !== 'General Advocate Desk');
   const lawyersCount = associates.length;
+  const recentAssociates = [...associates]
+    .sort((a, b) => (Date.parse(b.lastFeeAt || '') || 0) - (Date.parse(a.lastFeeAt || '') || 0)
+      || a.lawyerName.localeCompare(b.lawyerName))
+    .slice(0, 5);
 
   return (
     <div className="space-y-6">
@@ -115,30 +119,33 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({ summary, loading, onSe
 
       {/* Lawyers Collection & Assigned Work Cards */}
       <div className="bg-white rounded-xl border border-[#E2E8F0] shadow-sm overflow-hidden">
-        <div className="p-4 sm:p-5 border-b border-[#E2E8F0] flex flex-col sm:flex-row sm:items-center justify-between gap-2 bg-[#F8FAFC]">
+        <div className="px-4 py-3 sm:px-5 border-b border-[#E2E8F0] flex flex-col sm:flex-row sm:items-center justify-between gap-2 bg-[#F8FAFC]">
           <div>
             <h2 className="text-base font-bold text-[#0F172A] flex items-center space-x-2">
               <Briefcase className="w-4 h-4 text-[#C89B3C] shrink-0" />
               <span>Junior Lawyers Collection & Assigned Task Performance</span>
             </h2>
             <p className="text-xs text-[#475569] mt-0.5">
-              Live fees collected by each junior lawyer on their designated tasks
+              Five most recently active junior lawyers and their fee totals
             </p>
           </div>
+          {associates.length > 5 && (
+            <span className="text-[11px] font-semibold text-[#475569]">Showing 5 of {associates.length}</span>
+          )}
         </div>
 
         <div className="divide-y divide-[#E2E8F0]">
-          {associates.length > 0 ? (
-            associates.map((lawyer) => {
+          {recentAssociates.length > 0 ? (
+            recentAssociates.map((lawyer) => {
               const share = grandTotal > 0 ? ((lawyer.totalCollected / grandTotal) * 100).toFixed(1) : '0';
               return (
                 <div
                   key={lawyer.lawyerId}
-                  className="p-4 sm:p-5 hover:bg-[#F8FAFC] transition flex flex-col lg:flex-row lg:items-center justify-between gap-4"
+                  className="px-4 py-2.5 sm:px-5 sm:py-3 hover:bg-[#F8FAFC] transition flex flex-col lg:flex-row lg:items-center justify-between gap-2.5"
                 >
                   {/* Lawyer Info */}
-                  <div className="flex items-start space-x-3 sm:space-x-3.5 flex-1 min-w-0">
-                    <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-full bg-[#0F1E36] text-white border border-[#1E293B] flex items-center justify-center font-bold text-xs sm:text-sm shrink-0">
+                  <div className="flex items-start space-x-2.5 flex-1 min-w-0">
+                    <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-[#0F1E36] text-white border border-[#1E293B] flex items-center justify-center font-bold text-xs shrink-0">
                       {lawyer.lawyerName.replace('Adv. ', '').slice(0, 2).toUpperCase()}
                     </div>
                     <div className="min-w-0 flex-1">
@@ -150,27 +157,33 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({ summary, loading, onSe
                       </div>
 
                       {/* Assigned Tasks Tags */}
-                      <div className="mt-1.5 flex flex-wrap gap-1.5 items-center">
+                      <div className="mt-1 flex flex-wrap gap-1 items-center">
                         <span className="text-[11px] text-[#94A3B8] font-medium">Assigned Work:</span>
                         {lawyer.assignedTasks && lawyer.assignedTasks.length > 0 ? (
-                          lawyer.assignedTasks.map((task) => (
+                          lawyer.assignedTasks.slice(0, 2).map((task) => (
                             <span
                               key={task}
-                              className="text-xs bg-[#FBF4E6] text-[#B48328] border border-[#C89B3C]/30 px-2 py-0.5 rounded-md font-semibold flex items-center space-x-1"
+                              title={task}
+                              className="min-w-0 max-w-[180px] text-[11px] bg-[#FBF4E6] text-[#B48328] border border-[#C89B3C]/30 px-1.5 py-0.5 rounded-md font-semibold flex items-center space-x-1"
                             >
                               <span>★</span>
-                              <span>{task}</span>
+                              <span className="truncate">{task}</span>
                             </span>
                           ))
                         ) : (
                           <span className="text-xs text-[#94A3B8] italic">General Legal Matters</span>
+                        )}
+                        {lawyer.assignedTasks?.length > 2 && (
+                          <span title={lawyer.assignedTasks.slice(2).join(', ')} className="text-[11px] text-[#475569] font-semibold">
+                            +{lawyer.assignedTasks.length - 2} more
+                          </span>
                         )}
                       </div>
                     </div>
                   </div>
 
                   {/* Financial Stats for this Lawyer */}
-                  <div className="flex flex-wrap sm:flex-nowrap items-center justify-between lg:justify-end gap-3 sm:gap-6 w-full lg:w-auto pt-3 lg:pt-0 border-t lg:border-t-0 border-slate-100">
+                  <div className="flex flex-wrap sm:flex-nowrap items-center justify-between lg:justify-end gap-2.5 sm:gap-4 w-full lg:w-auto pt-2 lg:pt-0 border-t lg:border-t-0 border-slate-100">
                     <div className="text-left sm:text-right">
                       <div className="text-[10px] font-bold uppercase text-[#94A3B8] tracking-wider">TODAY</div>
                       <div className="text-sm sm:text-base font-extrabold text-emerald-600">

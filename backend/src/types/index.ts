@@ -103,6 +103,7 @@ export interface LawyerFeeBreakdown {
   totalCollected: number;
   todayCollected: number;
   clientCount: number;
+  lastFeeAt: string | null;
   assignedTasks: string[];
 }
 
