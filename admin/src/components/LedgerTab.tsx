@@ -248,6 +248,17 @@ export const LedgerTab: React.FC<LedgerTabProps> = ({
           <div className="flex items-center space-x-1 bg-[#F4F6F9] p-1 rounded-lg text-xs font-semibold border border-[#E2E8F0] overflow-x-auto max-w-full">
             <button
               onClick={() => {
+                setPeriodPreset('all');
+                setPage(1);
+              }}
+              className={`whitespace-nowrap px-3 py-1.5 rounded-md transition shrink-0 ${
+                periodPreset === 'all' ? 'bg-[#0F1E36] text-white shadow-sm font-bold' : 'text-[#475569] hover:text-[#0F172A]'
+              }`}
+            >
+              All Time
+            </button>
+            <button
+              onClick={() => {
                 setPeriodPreset('today');
                 setPage(1);
               }}
@@ -278,17 +289,6 @@ export const LedgerTab: React.FC<LedgerTabProps> = ({
               }`}
             >
               This Month
-            </button>
-            <button
-              onClick={() => {
-                setPeriodPreset('all');
-                setPage(1);
-              }}
-              className={`whitespace-nowrap px-3 py-1.5 rounded-md transition shrink-0 ${
-                periodPreset === 'all' ? 'bg-[#0F1E36] text-white shadow-sm font-bold' : 'text-[#475569] hover:text-[#0F172A]'
-              }`}
-            >
-              All Time
             </button>
             <button
               onClick={() => {
