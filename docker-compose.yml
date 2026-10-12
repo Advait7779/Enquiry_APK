@@ -47,7 +47,7 @@ services:
     depends_on:
       - backend
     expose:
-      - "80"
+      - "4001"
 
 volumes:
   advocate_postgres_data:
