@@ -6,7 +6,9 @@ import {
   ScrollView,
   KeyboardAvoidingView,
   Platform,
-  useWindowDimensions
+  useWindowDimensions,
+  Modal,
+  TouchableOpacity,
 } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useNavigation } from '@react-navigation/native';
@@ -16,12 +18,13 @@ import { CustomInput } from '../components/CustomInput';
 import { CustomButton } from '../components/CustomButton';
 import { CustomModal } from '../components/CustomModal';
 import { apiClient } from '../api/client';
-import { LEGAL_PURPOSES, UrgencyLevel } from '../types';
+import { LEGAL_PURPOSES, UrgencyLevel, ILawyer } from '../types';
 import { formatFullDate, formatTime } from '../utils/date';
 import { ClockSvg } from '../components/SvgIcons';
 import { AnimatedScreen } from '../components/AnimatedScreen';
 import { AnimatedPressable } from '../components/AnimatedPressable';
 import { usePreferences } from '../context/PreferencesContext';
+import { useAuth } from '../context/AuthContext';
 import { notificationService } from '../services/notificationService';
 import { formatFeesPaid } from '../utils/currency';
 
@@ -29,6 +32,7 @@ export const NewEntryScreen: React.FC = () => {
   const navigation = useNavigation<any>();
   const { width } = useWindowDimensions();
   const { notificationSoundEnabled } = usePreferences();
+  const { lawyerId: loggedInLawyerId, lawyerName: loggedInLawyerName, role } = useAuth();
   const isSmallScreen = width < 380;
 
   // Live Auto-Timestamp
@@ -49,6 +53,45 @@ export const NewEntryScreen: React.FC = () => {
   const [customPurpose, setCustomPurpose] = useState('');
   const [urgency, setUrgency] = useState<'Normal' | 'Urgent'>('Normal');
 
+  // Lawyer Selection State (Option B Dropdown)
+  const [lawyers, setLawyers] = useState<ILawyer[]>([]);
+  const [selectedLawyerId, setSelectedLawyerId] = useState<string>('');
+  const [selectedLawyerName, setSelectedLawyerName] = useState<string>('Select a junior lawyer');
+  const [showLawyerPicker, setShowLawyerPicker] = useState(false);
+  const [showTaskPicker, setShowTaskPicker] = useState(false);
+  const [lawyerLoadError, setLawyerLoadError] = useState('');
+
+  useEffect(() => {
+    apiClient.getLawyers(true).then((list) => {
+      setLawyerLoadError('');
+      if (list && list.length > 0) {
+        setLawyers(list);
+        // Smart Auto-Selection: match logged-in lawyer account
+        const matched = loggedInLawyerId ? list.find((l) => l.id === loggedInLawyerId) : null;
+        const target = matched || list.find((l) => l.name.toLowerCase() === loggedInLawyerName?.toLowerCase()) || list[0];
+
+        setSelectedLawyerId(target.id);
+        setSelectedLawyerName(target.name);
+        if (target.assignedTasks && target.assignedTasks.length > 0) {
+          setSelectedPurpose(target.assignedTasks[0]);
+        }
+      }
+    }).catch((error: Error) => {
+      setLawyerLoadError(error.message || 'Could not load junior lawyers.');
+    });
+  }, [loggedInLawyerId, loggedInLawyerName]);
+
+  const handleSelectLawyer = (l: ILawyer) => {
+    setSelectedLawyerId(l.id);
+    setSelectedLawyerName(l.name);
+    setShowLawyerPicker(false);
+    if (l.assignedTasks && l.assignedTasks.length > 0) {
+      setSelectedPurpose(l.assignedTasks[0]);
+    }
+  };
+
+  const selectedLawyer = lawyers.find((l) => l.id === selectedLawyerId);
+
   // Validation & UI State
   const [errors, setErrors] = useState<{ [key: string]: string | undefined }>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -58,6 +101,7 @@ export const NewEntryScreen: React.FC = () => {
     name: string;
     phone: string;
     purpose: string;
+    lawyer: string;
     feesPaid: number;
     urgency: string;
     time: string;
@@ -87,12 +131,17 @@ export const NewEntryScreen: React.FC = () => {
     const cleanContact = contactNo.trim().replace(/[\s()-]/g, '');
     if (!cleanContact) {
       newErrors.contactNo = 'Contact number is required.';
-    } else if (!/^\+?[0-9]{7,15}$/.test(cleanContact)) {
-      newErrors.contactNo = 'Enter a valid mobile or WhatsApp number (7-15 digits).';
+    } else if (!/^(?:\+?91)?\d{10}$/.test(cleanContact)) {
+      newErrors.contactNo = 'Enter a 10-digit Indian mobile number, optionally prefixed with +91.';
     }
 
     if (selectedPurpose.startsWith('Other') && !customPurpose.trim()) {
       newErrors.customPurpose = 'Please enter the specific reason for visit.';
+    }
+    if (!selectedLawyerId) {
+      newErrors.lawyerId = role === 'lawyer'
+        ? 'Your lawyer account could not be loaded. Sign in again.'
+        : 'Select the junior lawyer assigned to this client.';
     }
 
     const normalizedFees = feesPaid.trim().replace(/,/g, '');
@@ -120,6 +169,9 @@ export const NewEntryScreen: React.FC = () => {
         fullName: fullName.trim(),
         contactNo: contactNo.trim(),
         purpose: finalPurpose,
+        assignedAdvocate: selectedLawyerName || 'General Advocate Desk',
+        lawyerId: selectedLawyerId || undefined,
+        assignedTask: selectedPurpose,
         feesPaid: normalizedFees ? Number(normalizedFees) : 0,
         urgency: urgency as UrgencyLevel,
       });
@@ -137,6 +189,7 @@ export const NewEntryScreen: React.FC = () => {
         name: created.fullName,
         phone: created.contactNo,
         purpose: created.purpose,
+        lawyer: created.assignedAdvocate || selectedLawyerName,
         feesPaid: created.feesPaid,
         urgency: created.urgency,
         time: formatTime(created.entryTime),
@@ -159,7 +212,17 @@ export const NewEntryScreen: React.FC = () => {
     setFullName('');
     setContactNo('');
     setFeesPaid('');
-    setSelectedPurpose(LEGAL_PURPOSES[0]);
+    if (lawyers.length > 0) {
+      setSelectedLawyerId(lawyers[0].id);
+      setSelectedLawyerName(lawyers[0].name);
+      if (lawyers[0].assignedTasks && lawyers[0].assignedTasks.length > 0) {
+        setSelectedPurpose(lawyers[0].assignedTasks[0]);
+      } else {
+        setSelectedPurpose(LEGAL_PURPOSES[0]);
+      }
+    } else {
+      setSelectedPurpose(LEGAL_PURPOSES[0]);
+    }
     setCustomPurpose('');
     setUrgency('Normal');
     setErrors({});
@@ -248,33 +311,90 @@ export const NewEntryScreen: React.FC = () => {
           />
         </View>
 
-        {/* Section 2: Purpose of Visit */}
+        {/* Section 2: Assigned Lawyer & Work / Task (Option B) */}
         <View style={styles.formSection}>
-          <Text style={styles.sectionHeaderTitle}>2. Purpose / Reason for Visit</Text>
-          <Text style={styles.sectionSubtext}>Select visit category or choose custom below</Text>
+          <Text style={styles.sectionHeaderTitle}>2. Assigned Junior Lawyer & Work / Task</Text>
+          <Text style={styles.sectionSubtext}>Select the lawyer handling this client and their assigned work</Text>
 
-          <View style={styles.chipsWrap}>
-            {LEGAL_PURPOSES.map((purpose) => {
-              const isSelected = selectedPurpose === purpose;
-              return (
-              <AnimatedPressable
-                key={purpose}
-                accessibilityRole="button"
-                accessibilityLabel={`Visit purpose: ${purpose}`}
-                accessibilityState={{ selected: isSelected }}
-                  onPress={() => setSelectedPurpose(purpose)}
-                  style={[styles.purposeChip, isSelected && styles.purposeChipSelected]}
-                >
-                  {isSelected && (
-                    <Ionicons name="checkmark-circle" size={14} color={colors.accent} style={{ marginRight: 4 }} />
-                  )}
-                  <Text style={[styles.purposeChipText, isSelected && styles.purposeChipTextSelected]}>
-                    {purpose}
+          {/* Lawyer Dropdown Selector */}
+          <Text style={styles.fieldLabel}>ASSIGNED LAWYER <Text style={{ color: colors.danger }}>*</Text></Text>
+          <AnimatedPressable
+            accessibilityRole="button"
+            accessibilityLabel={`Selected lawyer: ${selectedLawyerName}`}
+            style={styles.dropdownSelector}
+            onPress={() => {
+              if (role === 'admin') setShowLawyerPicker(true);
+            }}
+          >
+            <View style={styles.dropdownLeft}>
+              <View style={styles.lawyerAvatarCircle}>
+                <Ionicons name="person" size={17} color={colors.primary} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.dropdownSelectedText}>{selectedLawyerName}</Text>
+                {selectedLawyer?.assignedTasks && selectedLawyer.assignedTasks.length > 0 ? (
+                  <Text style={styles.dropdownSubtext} numberOfLines={1}>
+                    ★ Focus: {selectedLawyer.assignedTasks.join(', ')}
                   </Text>
-                </AnimatedPressable>
-              );
-            })}
-          </View>
+                ) : (
+                  <Text style={styles.dropdownSubtext}>General Chamber Desk</Text>
+                )}
+              </View>
+            </View>
+            {role === 'admin' ? <Ionicons name="chevron-down" size={20} color={colors.textSecondary} /> : null}
+          </AnimatedPressable>
+          {errors.lawyerId || lawyerLoadError ? (
+            <Text style={{ color: colors.danger, fontSize: 12, marginTop: 5 }}>{errors.lawyerId || lawyerLoadError}</Text>
+          ) : null}
+
+          {/* Work / Task Dropdown Selector */}
+          <Text style={[styles.fieldLabel, { marginTop: 14 }]}>LAWYER'S WORK / TASK <Text style={{ color: colors.danger }}>*</Text></Text>
+          <AnimatedPressable
+            accessibilityRole="button"
+            accessibilityLabel={`Selected task: ${selectedPurpose}`}
+            style={styles.dropdownSelector}
+            onPress={() => setShowTaskPicker(true)}
+          >
+            <View style={styles.dropdownLeft}>
+              <View style={[styles.lawyerAvatarCircle, { backgroundColor: '#FEF3C7' }]}>
+                <Ionicons name="briefcase" size={17} color="#B45309" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.dropdownSelectedText}>{selectedPurpose}</Text>
+                <Text style={styles.dropdownSubtext}>Tap to change or choose specific legal work</Text>
+              </View>
+            </View>
+            <Ionicons name="chevron-down" size={20} color={colors.textSecondary} />
+          </AnimatedPressable>
+
+          {/* Quick chips of assigned tasks for 1-tap selection */}
+          {selectedLawyer?.assignedTasks && selectedLawyer.assignedTasks.length > 0 && (
+            <View style={{ marginTop: 12 }}>
+              <Text style={styles.quickSelectLabel}>Tasks Assigned to {selectedLawyerName}:</Text>
+              <View style={styles.chipsWrap}>
+                {selectedLawyer.assignedTasks.map((task) => {
+                  const isSelected = selectedPurpose === task;
+                  return (
+                    <AnimatedPressable
+                      key={task}
+                      onPress={() => setSelectedPurpose(task)}
+                      style={[styles.assignedTaskChip, isSelected && styles.assignedTaskChipSelected]}
+                    >
+                      <Ionicons
+                        name={isSelected ? "checkmark-circle" : "star"}
+                        size={13}
+                        color={isSelected ? "#FFFFFF" : colors.accent}
+                        style={{ marginRight: 4 }}
+                      />
+                      <Text style={[styles.assignedTaskChipText, isSelected && styles.assignedTaskChipTextSelected]}>
+                        {task}
+                      </Text>
+                    </AnimatedPressable>
+                  );
+                })}
+              </View>
+            </View>
+          )}
 
           {selectedPurpose.startsWith('Other') && (
             <CustomInput
@@ -369,7 +489,7 @@ export const NewEntryScreen: React.FC = () => {
           onClose={() => setSavedClientInfo(null)}
           type="success"
           title="New Client Added"
-          message={`Client "${savedClientInfo.name}" has been recorded at ${savedClientInfo.time}.\n\nContact: ${savedClientInfo.phone}\nPurpose: ${savedClientInfo.purpose}\nFees Paid: ${formatFeesPaid(savedClientInfo.feesPaid)}\nPriority: ${savedClientInfo.urgency}`}
+          message={`Client "${savedClientInfo.name}" has been recorded at ${savedClientInfo.time}.\n\nAssigned Lawyer: ${savedClientInfo.lawyer}\nTask / Work: ${savedClientInfo.purpose}\nFees Paid: ${formatFeesPaid(savedClientInfo.feesPaid)}\nPriority: ${savedClientInfo.urgency}`}
           primaryAction={{
             text: 'View Lobby Queue',
             icon: 'people',
@@ -397,6 +517,141 @@ export const NewEntryScreen: React.FC = () => {
           onPress: () => setErrorModalConfig({ ...errorModalConfig, visible: false }),
         }}
       />
+
+      {/* Lawyer Selection Modal (Option B Dropdown) */}
+      <Modal
+        visible={showLawyerPicker}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowLawyerPicker(false)}
+      >
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setShowLawyerPicker(false)}
+        >
+          <View style={styles.modalSheetContainer}>
+            <View style={styles.modalHeaderRow}>
+              <View>
+                <Text style={styles.modalSheetTitle}>Select Assigned Lawyer</Text>
+                <Text style={styles.modalSheetSub}>Choose lawyer handling this client</Text>
+              </View>
+              <TouchableOpacity onPress={() => setShowLawyerPicker(false)} style={styles.modalCloseBtn}>
+                <Ionicons name="close" size={20} color={colors.textSecondary} />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView style={{ maxHeight: 350 }} showsVerticalScrollIndicator={false}>
+              {lawyers.map((l) => {
+                const isSelected = selectedLawyerId === l.id;
+                return (
+                  <TouchableOpacity
+                    key={l.id}
+                    style={[styles.pickerItemRow, isSelected && styles.pickerItemRowSelected]}
+                    onPress={() => handleSelectLawyer(l)}
+                  >
+                    <View style={[styles.lawyerAvatarCircle, isSelected && { backgroundColor: colors.primary }]}>
+                      <Ionicons name="person" size={17} color={isSelected ? '#FFFFFF' : colors.primary} />
+                    </View>
+                    <View style={{ flex: 1, marginLeft: 10 }}>
+                      <Text style={[styles.pickerItemName, isSelected && styles.pickerItemNameSelected]}>
+                        {l.name}
+                      </Text>
+                      {l.assignedTasks && l.assignedTasks.length > 0 ? (
+                        <Text style={styles.pickerItemSub}>★ Tasks: {l.assignedTasks.join(', ')}</Text>
+                      ) : (
+                        <Text style={styles.pickerItemSub}>General Legal Matters</Text>
+                      )}
+                    </View>
+                    {isSelected && (
+                      <Ionicons name="checkmark-circle" size={22} color={colors.primary} />
+                    )}
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* Task / Work Selection Modal */}
+      <Modal
+        visible={showTaskPicker}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowTaskPicker(false)}
+      >
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setShowTaskPicker(false)}
+        >
+          <View style={styles.modalSheetContainer}>
+            <View style={styles.modalHeaderRow}>
+              <View>
+                <Text style={styles.modalSheetTitle}>Select Legal Work / Task</Text>
+                <Text style={styles.modalSheetSub}>Select task domain or purpose of visit</Text>
+              </View>
+              <TouchableOpacity onPress={() => setShowTaskPicker(false)} style={styles.modalCloseBtn}>
+                <Ionicons name="close" size={20} color={colors.textSecondary} />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView style={{ maxHeight: 380 }} showsVerticalScrollIndicator={false}>
+              {/* Assigned tasks for current lawyer */}
+              {selectedLawyer?.assignedTasks && selectedLawyer.assignedTasks.length > 0 && (
+                <View style={{ marginBottom: 10 }}>
+                  <Text style={styles.pickerSectionHeader}>★ Assigned to {selectedLawyerName}:</Text>
+                  {selectedLawyer.assignedTasks.map((task) => {
+                    const isSelected = selectedPurpose === task;
+                    return (
+                      <TouchableOpacity
+                        key={task}
+                        style={[styles.pickerItemRow, isSelected && styles.pickerItemRowSelected]}
+                        onPress={() => {
+                          setSelectedPurpose(task);
+                          setShowTaskPicker(false);
+                        }}
+                      >
+                        <Ionicons name="star" size={16} color={colors.accent} style={{ marginRight: 8 }} />
+                        <Text style={[styles.pickerItemName, isSelected && styles.pickerItemNameSelected, { flex: 1 }]}>
+                          {task}
+                        </Text>
+                        {isSelected && <Ionicons name="checkmark-circle" size={20} color={colors.primary} />}
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              )}
+
+              {(role !== 'lawyer' || !selectedLawyer?.assignedTasks?.length) && (
+                <>
+                  <Text style={styles.pickerSectionHeader}>All Legal Services:</Text>
+                  {LEGAL_PURPOSES.map((purpose) => {
+                    const isSelected = selectedPurpose === purpose;
+                    return (
+                      <TouchableOpacity
+                        key={purpose}
+                        style={[styles.pickerItemRow, isSelected && styles.pickerItemRowSelected]}
+                        onPress={() => {
+                          setSelectedPurpose(purpose);
+                          setShowTaskPicker(false);
+                        }}
+                      >
+                        <Ionicons name="briefcase-outline" size={16} color={colors.textSecondary} style={{ marginRight: 8 }} />
+                        <Text style={[styles.pickerItemName, isSelected && styles.pickerItemNameSelected, { flex: 1 }]}>
+                          {purpose}
+                        </Text>
+                        {isSelected && <Ionicons name="checkmark-circle" size={20} color={colors.primary} />}
+                      </TouchableOpacity>
+                    );
+                  })}
+                </>
+              )}
+            </ScrollView>
+          </View>
+        </TouchableOpacity>
+      </Modal>
       </AnimatedScreen>
     </KeyboardAvoidingView>
   );
@@ -552,6 +807,159 @@ const styles = StyleSheet.create({
   actionContainer: {
     marginTop: 4,
     marginBottom: 20,
+  },
+  fieldLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: colors.textSecondary,
+    marginBottom: 6,
+    letterSpacing: 0.5,
+  },
+  dropdownSelector: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1.5,
+    borderColor: colors.border,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  dropdownLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    marginRight: 10,
+  },
+  lawyerAvatarCircle: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: '#EFF6FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 10,
+    borderWidth: 1,
+    borderColor: '#DBEAFE',
+  },
+  dropdownSelectedText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: colors.textPrimary,
+  },
+  dropdownSubtext: {
+    fontSize: 11,
+    color: colors.textSecondary,
+    marginTop: 1,
+  },
+  quickSelectLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: colors.primary,
+    marginBottom: 6,
+  },
+  assignedTaskChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 7,
+    paddingHorizontal: 12,
+    borderRadius: 20,
+    backgroundColor: '#FEF3C7',
+    borderWidth: 1,
+    borderColor: '#FDE68A',
+    marginRight: 8,
+    marginBottom: 8,
+  },
+  assignedTaskChipSelected: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  assignedTaskChipText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#92400E',
+  },
+  assignedTaskChipTextSelected: {
+    color: '#FFFFFF',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(15, 30, 54, 0.65)',
+    justifyContent: 'center',
+    padding: 16,
+  },
+  modalSheetContainer: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    padding: 18,
+    maxHeight: '80%',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 10,
+    elevation: 8,
+  },
+  modalHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 14,
+    paddingBottom: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  modalSheetTitle: {
+    fontSize: 17,
+    fontWeight: '800',
+    color: colors.textPrimary,
+  },
+  modalSheetSub: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    marginTop: 2,
+  },
+  modalCloseBtn: {
+    padding: 6,
+    borderRadius: 16,
+    backgroundColor: colors.surfaceSubtle,
+  },
+  pickerSectionHeader: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: colors.textSecondary,
+    marginTop: 8,
+    marginBottom: 6,
+    textTransform: 'uppercase',
+  },
+  pickerItemRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 10,
+    borderRadius: 8,
+    marginBottom: 6,
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: 'transparent',
+  },
+  pickerItemRowSelected: {
+    backgroundColor: '#EFF6FF',
+    borderColor: colors.primary,
+  },
+  pickerItemName: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.textPrimary,
+  },
+  pickerItemNameSelected: {
+    fontWeight: '800',
+    color: colors.primary,
+  },
+  pickerItemSub: {
+    fontSize: 11,
+    color: colors.textSecondary,
+    marginTop: 2,
   },
 });
 

@@ -2,5 +2,8 @@ node_modules
 dist
 .expo
 .env
-npm-debug.log*
+.env.*
+!.env.example
+.git
+*.log
 Dockerfile*

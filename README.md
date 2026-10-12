@@ -5,6 +5,7 @@ Client intake, today's client list, contact actions, register search, preference
 ## Project layout
 
 - `mobile/`: Expo SDK 57 app for Android, iOS, and web.
+- `admin/`: React + Vite + Tailwind CSS dedicated Web Admin Portal for Adv. Balasaheb Thopate (Lawyer task assignment & Day/Date/Time fees ledger).
 - `backend/`: Express + TypeScript API.
 - `backend/prisma/`: PostgreSQL schema and production migrations.
 - `docker-compose.yml`: PostgreSQL, API, and web containers for Coolify.
@@ -32,17 +33,32 @@ npx expo start
 
 For a physical Expo device, replace `localhost` with the development computer's LAN address. Android Emulator defaults to `http://10.0.2.2:5000/api/v1` when the variable is omitted.
 
+### Web Admin Panel
+
+```powershell
+cd admin
+npm install
+npm run dev
+```
+
+The Web Admin Portal runs at `http://localhost:3000` with automatic `/api` proxying to `http://localhost:5000`.
+
 ## Quality checks
 
 ```powershell
 cd backend
 npm run check
+npm test
 npm run build
 npx prisma validate
 
 cd ../mobile
 npm run check
 npm run build:web
+
+cd ../admin
+npm run build
+npm test
 ```
 
 ## Deploy to Hostinger with Coolify
@@ -59,33 +75,42 @@ Use the root `docker-compose.yml` as one Coolify Docker Compose resource.
    LOGIN_USERNAME=<office-login-name>
    LOGIN_PASSWORD=<strong-private-password>
    AUTH_SECRET=<random-string-at-least-32-characters>
+   INTEGRATION_ENCRYPTION_KEY=<different-random-string-at-least-32-characters>
    AUTH_TOKEN_TTL_HOURS=168
    LOGIN_RATE_LIMIT_MAX=10
-   CORS_ORIGIN=
+   CORS_ORIGIN=https://admin.clients.example.com
    RATE_LIMIT_MAX=1000
    OFFICE_TIMEZONE_OFFSET_MINUTES=330
+   VITE_API_BASE_URL=
    ```
 
-4. Assign `https://api.clients.example.com` to the `backend` service on internal port `5000`.
-5. Keep the `database` service internal. Do not publish PostgreSQL port `5432`.
-6. Enable HTTPS and deploy.
-7. Verify `https://api.clients.example.com/api/v1/health`, then use **Settings → Test Server Connection** after installing the APK.
+4. Assign `https://admin.clients.example.com` to the `admin` service on internal port `80`. Its Nginx configuration proxies `/api` to the backend service. Do not publish a host port for the admin service.
+5. Assign `https://api.clients.example.com` to the `backend` service on internal port `5000` for the Android APK.
+6. Keep the `database` service internal. Do not publish PostgreSQL port `5432`.
+7. Enable HTTPS and deploy. Set `CORS_ORIGIN` to the exact HTTPS origin of the admin portal, without a trailing slash. Keep `VITE_API_BASE_URL` empty for the Compose deployment above. If the admin is deployed as a separate static resource, set `VITE_API_BASE_URL` to the public backend origin as well.
+8. Verify `https://api.clients.example.com/api/v1/health`, sign into the admin portal with the master admin account, and configure unique credentials for every junior lawyer before activating their access.
+9. Use **Settings → Test Server Connection** after installing the APK.
 
 The Android app connects directly to the HTTPS backend. After login, it stores a time-limited signed session token; the configured password and signing secret remain only in the backend environment.
 
-### Optional client SMS notification
+### Client notification integrations
 
-New-client SMS notifications are sent only by the backend so the provider key never enters the APK. Keep `SMS_NOTIFICATION_URL` empty to disable SMS. To enable it, paste the complete approved provider URL into this single backend environment variable. The backend automatically replaces an existing `number` or `phone` query parameter with the new client's 10-digit mobile number.
+Configure SMS, RCS, WhatsApp, and Voice Call URLs from the admin portal. The current gateway contract requires a public HTTPS URL that accepts GET requests with query parameters. Providers requiring POST requests, custom headers, or JSON bodies need a provider-specific adapter before they can be used. Saved URLs are encrypted before storage in PostgreSQL and are never returned to the browser after saving. `SMS_NOTIFICATION_URL` remains available only as an optional initial SMS bootstrap value; prefer saving a newly rotated URL from the admin portal.
 
-URL parameters may use `{phone}`, `{name}`, `{purpose}`, and `{feesPaid}` placeholders. Use placeholders only when they comply with the approved provider template. If the provider is unavailable, the client record is still saved and the failure is logged without exposing the full mobile number or complete URL.
+URL parameters may use `{phone}`, `{name}`, `{purpose}`, and `{feesPaid}` placeholders. Provider-style sequential `[var]` placeholders are filled with client name, purpose, fees, and phone in that order. Existing `number` or `phone` parameters are replaced with the client's 10-digit number. Notifications are processed through a persistent database outbox after the client record is saved, with retries for temporary provider failures.
+
+Only HTTPS public provider endpoints are accepted in production. Private-network and localhost destinations are blocked. The admin panel's **Send Test** action makes a real provider request or places a real call and requires confirmation. A provider-accepted request does not prove delivery to the client; confirm delivery with the provider's dashboard or callback. **Notification activity** shows recent jobs and failed attempts; an administrator can requeue failed channels. If an enquiry was saved before a channel URL was configured, use **All recent → Send missing** after adding that URL. A retry can duplicate a message or call if a provider accepted an earlier request but its response was lost.
+
+Client intake accepts a 10-digit Indian mobile number, optionally prefixed with `91` or `+91`, so every newly saved enquiry has a number supported by the notification gateway.
 
 ### Production requirements
 
 - Configure automatic PostgreSQL backups in Coolify/Hostinger and test a restore.
+- Commit the admin portal, notification code, and Prisma migrations before deploying a Git-based Coolify resource; local uncommitted files are not available to the remote build.
 - Keep the repository and all environment values private.
 - Rotate `API_KEY` after any suspected server-secret exposure.
 - Rotate `LOGIN_PASSWORD` and `AUTH_SECRET` after any suspected account or token exposure.
-- Expose only the backend through HTTPS; keep PostgreSQL private.
+- Expose only the admin portal and backend through HTTPS; keep PostgreSQL private.
 - Client records cannot be deleted through the app or API; database backups remain the disaster-recovery mechanism.
 
 ## Build an Android APK later
@@ -109,3 +134,5 @@ The `preview` profile in `mobile/eas.json` produces an installable release APK. 
 - Register search and date filtering are paginated on the server.
 - CSV exports stream from the server instead of loading the complete register into app memory.
 - Fees paid are recorded with each new client and included in client details and CSV exports.
+- Web Admin Portal provides dedicated executive controls: assign legal tasks/domains to junior advocates, view chamber fee totals (Today, This Month, All Time), track lawyer-by-lawyer collections, and inspect an audit-grade Day, Date, and Time financial ledger with CSV export and printing.
+- Junior advocates are locked to their own account and assigned work in the mobile APK. Only the chamber administrator can assign a client to a different lawyer.

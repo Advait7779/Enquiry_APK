@@ -1,6 +1,9 @@
 node_modules
 dist
-.env
 data
-npm-debug.log*
+.env
+.env.*
+!.env.example
+.git
+*.log
 Dockerfile*

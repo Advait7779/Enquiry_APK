@@ -1,7 +1,7 @@
 import axios, { AxiosError } from 'axios';
 import Constants from 'expo-constants';
 import { NativeModules, Platform } from 'react-native';
-import { CreateEnquiryInput, EnquiryPage, IEnquiry } from '../types';
+import { CreateEnquiryInput, EnquiryPage, IEnquiry, ILawyer } from '../types';
 
 declare const process: { env: Record<string, string | undefined> };
 
@@ -61,6 +61,7 @@ function getBaseUrl(): string {
 const baseUrl = getBaseUrl();
 const apiKey = (process.env.EXPO_PUBLIC_API_KEY || '').trim();
 let accessToken = '';
+let unauthorizedHandler: (() => void) | null = null;
 
 function requestOptions(timeout: number) {
   const headers: Record<string, string> = {};
@@ -72,6 +73,7 @@ function requestOptions(timeout: number) {
 function apiError(error: unknown): Error {
   const axiosError = error as AxiosError<{ message?: string; errors?: string[] }>;
   if (axiosError.response?.status === 401) {
+    unauthorizedHandler?.();
     return new Error(axiosError.response.data?.message || 'Your login session is missing or has expired.');
   }
   if (axiosError.response?.status === 409) {
@@ -110,23 +112,40 @@ export const apiClient = {
     accessToken = token?.trim() || '';
   },
 
-  async login(username: string, password: string): Promise<{ token: string; username: string }> {
+  setUnauthorizedHandler(handler: (() => void) | null): void {
+    unauthorizedHandler = handler;
+  },
+
+  async login(username: string, password: string): Promise<{
+    token: string;
+    username: string;
+    lawyerName?: string;
+    role?: string;
+    lawyerId?: string | null;
+    assignedTasks?: string[];
+  }> {
     try {
       const response = await axios.post(
         `${baseUrl}/auth/login`,
         { username, password },
         { timeout: 10000 },
       );
-      return assertData<{ token: string; username: string }>(response.data, 'The server did not return a login session.');
+      return assertData(response.data, 'The server did not return a login session.');
     } catch (error) {
       throw apiError(error);
     }
   },
 
-  async validateSession(): Promise<{ username: string }> {
+  async validateSession(): Promise<{
+    username: string;
+    lawyerName?: string;
+    role?: string;
+    lawyerId?: string | null;
+    assignedTasks?: string[];
+  }> {
     try {
       const response = await axios.get(`${baseUrl}/auth/session`, requestOptions(8000));
-      return assertData<{ username: string }>(response.data, 'The server did not confirm the login session.');
+      return assertData(response.data, 'The server did not confirm the login session.');
     } catch (error) {
       throw apiError(error);
     }
@@ -186,6 +205,20 @@ export const apiClient = {
       url: `${baseUrl}/enquiries/export/csv${query ? `?${query}` : ''}`,
       headers: requestOptions(30000).headers,
     };
+  },
+
+  async getLawyers(onlyActive = true): Promise<ILawyer[]> {
+    try {
+      const response = await readWithRetry(() =>
+        axios.get(`${baseUrl}/lawyers`, {
+          ...requestOptions(8000),
+          params: onlyActive ? { active: 'true' } : {},
+        })
+      );
+      return assertData<ILawyer[]>(response.data, 'Failed to fetch lawyers list.');
+    } catch (error) {
+      throw apiError(error);
+    }
   },
 
   async testConnection(): Promise<{ ok: boolean; message: string }> {

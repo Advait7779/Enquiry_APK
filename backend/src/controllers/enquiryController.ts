@@ -2,17 +2,19 @@ import { Request, Response } from 'express';
 import { z } from 'zod';
 import { dbService } from '../config/db';
 import { getOfficePeriodRange, OfficePeriod } from '../utils/time';
-import { sendNewClientSms } from '../services/smsService';
+import { normalizeNotificationPhone } from '../utils/phone';
 
 const createEnquirySchema = z.object({
   fullName: z.string().trim().min(2, 'Full name must be at least 2 characters').max(150),
-  contactNo: z.string().trim().max(30).refine((value) => {
-    const digits = value.replace(/\D/g, '');
-    return /^[0-9\s()+-]+$/.test(value) && digits.length >= 7 && digits.length <= 15;
-  }, 'Contact number must contain 7 to 15 digits'),
+  contactNo: z.string().trim().max(30).refine(
+    (value) => normalizeNotificationPhone(value) !== null,
+    'Enter a 10-digit Indian mobile number, optionally prefixed with +91',
+  ),
   purpose: z.string().trim().min(2, 'Purpose of visit is required').max(500),
   caseNumber: z.string().trim().max(100).optional(),
   assignedAdvocate: z.string().trim().max(150).optional(),
+  lawyerId: z.string().trim().optional(),
+  assignedTask: z.string().trim().min(2).max(200).optional(),
   feesPaid: z.number()
     .finite()
     .min(0, 'Fees paid cannot be negative')
@@ -27,7 +29,7 @@ const filterFields = {
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must use YYYY-MM-DD format').optional(),
   start: z.string().datetime().optional(),
   end: z.string().datetime().optional(),
-  period: z.enum(['today', 'month', 'year']).optional(),
+  period: z.enum(['today', 'yesterday', 'month', 'year']).optional(),
 };
 
 const listQuerySchema = z.object({
@@ -54,6 +56,12 @@ function csvCell(value: unknown): string {
   let text = value == null ? '' : String(value);
   if (/^[=+\-@]/.test(text)) text = `'${text}`;
   return `"${text.replace(/"/g, '""')}"`;
+}
+
+function csvTextExact(value: unknown): string {
+  const text = value == null ? '' : String(value).trim();
+  if (!text) return '""';
+  return `"=""${text.replace(/"/g, '""')}"""`;
 }
 
 function publicEnquiry<T extends Record<string, any>>(
@@ -84,6 +92,11 @@ function resolveFilter<T extends { start?: string; end?: string; period?: Office
   return { ...resolved, start: range.start.toISOString(), end: range.end.toISOString() };
 }
 
+function lawyerScope(req: Request): string | undefined {
+  const user = (req as any).user;
+  return user?.role === 'lawyer' ? user.lawyerId : undefined;
+}
+
 export const enquiryController = {
   async getEnquiries(req: Request, res: Response): Promise<void> {
     try {
@@ -97,7 +110,7 @@ export const enquiryController = {
         return;
       }
       const { page, pageSize, ...rawFilter } = query.data;
-      const filter = resolveFilter(rawFilter);
+      const filter = { ...resolveFilter(rawFilter), ...(lawyerScope(req) ? { lawyerId: lawyerScope(req) } : {}) };
       const result = await dbService.getEnquiriesPage(filter, page, pageSize);
       const totalPages = Math.max(1, Math.ceil(result.total / pageSize));
       res.json({
@@ -112,7 +125,7 @@ export const enquiryController = {
 
   async getEnquiryById(req: Request, res: Response): Promise<void> {
     try {
-      const enquiry = await dbService.getEnquiryById(req.params.id);
+      const enquiry = await dbService.getEnquiryById(req.params.id, lawyerScope(req));
       if (!enquiry) {
         res.status(404).json({ success: false, message: 'Enquiry not found' });
         return;
@@ -130,23 +143,38 @@ export const enquiryController = {
         res.status(400).json({ success: false, errors: validation.error.errors.map((error) => error.message) });
         return;
       }
+      const user = (req as any).user;
+      const scopedLawyerId = lawyerScope(req);
+      const assignedTasks: string[] = scopedLawyerId && Array.isArray(user.assignedTasks)
+        ? user.assignedTasks : [];
+      if (assignedTasks.length > 0 && !assignedTasks.includes(validation.data.assignedTask || validation.data.purpose)) {
+        res.status(403).json({ success: false, message: 'This work is not assigned to your lawyer account.' });
+        return;
+      }
+      if (scopedLawyerId && validation.data.assignedTask &&
+        !validation.data.assignedTask.startsWith('Other') &&
+        validation.data.assignedTask !== validation.data.purpose) {
+        res.status(400).json({ success: false, message: 'The selected task does not match the enquiry purpose.' });
+        return;
+      }
+      if (scopedLawyerId && validation.data.assignedTask?.startsWith('Other') === true &&
+        validation.data.purpose.startsWith('Other')) {
+        res.status(400).json({ success: false, message: 'Describe the custom legal work before saving.' });
+        return;
+      }
       const enquiry = await dbService.createEnquiry({
         ...validation.data,
+        ...(scopedLawyerId ? {
+          lawyerId: scopedLawyerId,
+          assignedAdvocate: user.lawyerName || user.sub,
+        } : {}),
         urgency: validation.data.urgency || 'Normal',
-      });
-      const sms = await sendNewClientSms({
-        fullName: enquiry.fullName,
-        contactNo: enquiry.contactNo,
-        purpose: enquiry.purpose,
-        feesPaid: Number(enquiry.feesPaid ?? 0),
       });
       res.status(201).json({
         success: true,
-        message: sms.status === 'sent'
-          ? 'Client enquiry recorded and SMS sent successfully'
-          : 'Client enquiry recorded successfully',
+        message: 'Client enquiry recorded successfully. Configured notifications are queued for delivery.',
         data: publicEnquiry(enquiry as any),
-        sms,
+        notifications: { status: 'queued' },
       });
     } catch (error: any) {
       res.status(500).json({ success: false, message: error.message });
@@ -166,7 +194,7 @@ export const enquiryController = {
         res.status(400).json({ success: false, message: 'The start time must be before the end time' });
         return;
       }
-      res.json({ success: true, data: await dbService.getTodayStats(start, end) });
+      res.json({ success: true, data: await dbService.getTodayStats(start, end, lawyerScope(req)) });
     } catch (error: any) {
       res.status(500).json({ success: false, message: error.message });
     }
@@ -188,19 +216,20 @@ export const enquiryController = {
       res.setHeader('Content-Disposition', 'attachment; filename="advocate_visitor_register.csv"');
       res.setHeader('Cache-Control', 'no-store');
       res.write('\uFEFFID,Full Name,Contact No,Purpose,Case Number,Advocate,Fees Paid,Urgency,Entry Time\n');
-      for await (const batch of dbService.iterateEnquiries(resolveFilter(query.data))) {
+      const filter = { ...resolveFilter(query.data), ...(lawyerScope(req) ? { lawyerId: lawyerScope(req) } : {}) };
+      for await (const batch of dbService.iterateEnquiries(filter)) {
         for (const enquiry of batch) {
           if (res.destroyed) return;
           res.write([
             csvCell(enquiry.id),
             csvCell(enquiry.fullName),
-            csvCell(enquiry.contactNo),
+            csvTextExact(enquiry.contactNo),
             csvCell(enquiry.purpose),
             csvCell(enquiry.caseNumber),
             csvCell(enquiry.assignedAdvocate),
             csvCell(enquiry.feesPaid),
             csvCell(enquiry.urgency),
-            csvCell(new Date(enquiry.entryTime).toISOString()),
+            csvTextExact(new Date(enquiry.entryTime).toISOString().replace('T', ' ').substring(0, 19)),
           ].join(',') + '\n');
         }
       }

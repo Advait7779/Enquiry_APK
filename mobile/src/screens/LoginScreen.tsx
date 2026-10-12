@@ -18,13 +18,11 @@ import { BriefcaseSvg, ShieldCheckSvg } from '../components/SvgIcons';
 import { useAuth } from '../context/AuthContext';
 import { colors } from '../theme/colors';
 
-const OFFICE_USERNAME = 'Balasaheb Thopate';
-
 export const LoginScreen: React.FC = () => {
   const { width, height } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const { login } = useAuth();
-  const [username, setUsername] = useState(OFFICE_USERNAME);
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
@@ -136,7 +134,7 @@ export const LoginScreen: React.FC = () => {
                     if (error) setError('');
                   }}
                   onSubmitEditing={() => passwordInput.current?.focus()}
-                  placeholder="Enter username"
+                  placeholder="Username (e.g. omkar or Balasaheb Thopate)"
                   placeholderTextColor={colors.textMuted}
                   returnKeyType="next"
                   style={styles.input}

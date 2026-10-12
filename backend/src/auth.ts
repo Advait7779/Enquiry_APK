@@ -1,12 +1,8 @@
 import crypto from 'crypto';
 import dotenv from 'dotenv';
+import { AuthTokenPayload } from './types';
 
 dotenv.config();
-
-interface AuthTokenPayload {
-  sub: string;
-  exp: number;
-}
 
 const loginUsername = (process.env.LOGIN_USERNAME || '').trim();
 const loginPassword = process.env.LOGIN_PASSWORD || '';
@@ -24,6 +20,25 @@ function sign(value: string): string {
   return crypto.createHmac('sha256', authSecret).update(value).digest('base64url');
 }
 
+export function hashPassword(password: string): string {
+  const salt = crypto.randomBytes(16).toString('hex');
+  const derivedKey = crypto.scryptSync(password, salt, 64);
+  return `${salt}:${derivedKey.toString('hex')}`;
+}
+
+export function verifyPassword(password: string, hash: string): boolean {
+  try {
+    const [salt, key] = hash.split(':');
+    if (!salt || !key) return false;
+    const keyBuffer = Buffer.from(key, 'hex');
+    const derivedKey = crypto.scryptSync(password, salt, 64);
+    if (keyBuffer.length !== derivedKey.length) return false;
+    return crypto.timingSafeEqual(keyBuffer, derivedKey);
+  } catch {
+    return false;
+  }
+}
+
 export function validateAuthConfiguration(isProduction: boolean): void {
   if (!loginUsername || !loginPassword) {
     throw new Error('LOGIN_USERNAME and LOGIN_PASSWORD must be configured');
@@ -39,13 +54,25 @@ export function validateAuthConfiguration(isProduction: boolean): void {
   }
 }
 
-export function authenticate(username: string, password: string): boolean {
-  return safeEqual(username.trim(), loginUsername) && safeEqual(password, loginPassword);
+export function authenticateAdmin(username: string, password: string): boolean {
+  return safeEqual(username.trim().toLowerCase(), loginUsername.toLowerCase()) && safeEqual(password, loginPassword);
 }
 
-export function createAccessToken(): string {
+export function createAccessToken(userPayload: {
+  sub: string;
+  lawyerId?: string | null;
+  lawyerName?: string;
+  role?: string;
+  assignedTasks?: string[];
+  authVersion?: number;
+}): string {
   const payload: AuthTokenPayload = {
-    sub: loginUsername,
+    sub: userPayload.sub,
+    lawyerId: userPayload.lawyerId || null,
+    lawyerName: userPayload.lawyerName || userPayload.sub,
+    role: userPayload.role || 'admin',
+    assignedTasks: userPayload.assignedTasks || [],
+    authVersion: userPayload.authVersion,
     exp: Math.floor(Date.now() / 1000) + Math.floor(tokenTtlHours * 60 * 60),
   };
   const encodedPayload = Buffer.from(JSON.stringify(payload)).toString('base64url');
@@ -59,7 +86,7 @@ export function verifyAccessToken(token: string): AuthTokenPayload | null {
     if (!safeEqual(parts[1], sign(parts[0]))) return null;
 
     const payload = JSON.parse(Buffer.from(parts[0], 'base64url').toString('utf8')) as AuthTokenPayload;
-    if (payload.sub !== loginUsername || !Number.isFinite(payload.exp)) return null;
+    if (!payload.sub || !Number.isFinite(payload.exp)) return null;
     if (payload.exp <= Math.floor(Date.now() / 1000)) return null;
     return payload;
   } catch {

@@ -8,6 +8,7 @@ export interface IEnquiry {
   purpose: string;
   caseNumber?: string | null;
   assignedAdvocate?: string | null;
+  lawyerId?: string | null;
   feesPaid: number;
   urgency: UrgencyLevel;
   entryTime: string; // ISO string
@@ -21,9 +22,21 @@ export interface CreateEnquiryInput {
   purpose: string;
   caseNumber?: string;
   assignedAdvocate?: string;
+  lawyerId?: string;
+  assignedTask?: string;
   feesPaid?: number;
   urgency?: UrgencyLevel;
 }
+
+export interface ILawyer {
+  id: string;
+  name: string;
+  phone?: string | null;
+  email?: string | null;
+  assignedTasks: string[];
+  isActive: boolean;
+}
+
 
 export interface EnquiryPage {
   items: IEnquiry[];

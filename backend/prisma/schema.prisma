@@ -30,6 +30,8 @@ model Enquiry {
   purpose                String
   caseNumber             String?
   assignedAdvocate       String?
+  lawyerId               String?
+  lawyer                 Lawyer?   @relation(fields: [lawyerId], references: [id], onDelete: Restrict)
   feesPaid               Decimal   @default(0) @db.Decimal(12, 2)
   urgency                String    @default("Normal") // Normal, High, Urgent
   status                 String    @default("Waiting") // Waiting, In Consultation, Completed, Rescheduled
@@ -40,6 +42,7 @@ model Enquiry {
   deletedAt              DateTime?
   createdAt              DateTime  @default(now())
   updatedAt              DateTime  @updatedAt
+  notificationJobs       NotificationJob[]
 
   @@index([entryTime])
   @@index([contactNo])
@@ -47,7 +50,53 @@ model Enquiry {
   @@index([status, entryTime])
   @@index([urgency, entryTime])
   @@index([deletedAt, entryTime])
+  @@index([lawyerId])
   @@map("enquiries")
+}
+
+model IntegrationSettings {
+  id               String   @id
+  encryptedPayload String
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@map("integration_settings")
+}
+
+model NotificationJob {
+  id            String   @id @default(uuid())
+  enquiryId     String
+  enquiry       Enquiry  @relation(fields: [enquiryId], references: [id], onDelete: Cascade)
+  status        String   @default("PENDING")
+  attempts      Int      @default(0)
+  nextAttemptAt DateTime @default(now())
+  lockedAt      DateTime?
+  lastError     String?
+  result        Json?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([status, nextAttemptAt])
+  @@index([enquiryId])
+  @@map("notification_jobs")
+}
+
+model Lawyer {
+  id             String    @id @default(uuid())
+  name           String    @unique
+  username       String?   @unique
+  passwordHash   String?
+  role           String    @default("lawyer")
+  phone          String?
+  email          String?
+  assignedTasks  String[]  @default([])
+  isActive       Boolean   @default(true)
+  authVersion    Int       @default(1)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  enquiries      Enquiry[]
+
+  @@map("lawyers")
 }
 
 model AuditLog {

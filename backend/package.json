@@ -9,6 +9,7 @@
     "start": "node dist/server.js",
     "start:production": "prisma migrate deploy && node dist/server.js",
     "check": "tsc --noEmit",
+    "test": "tsx --test src/**/*.test.ts",
     "prisma:generate": "prisma generate",
     "prisma:push": "prisma db push"
   },

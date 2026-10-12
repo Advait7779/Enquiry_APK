@@ -7,17 +7,23 @@ import rateLimit from 'express-rate-limit';
 import helmet from 'helmet';
 import http from 'http';
 import os from 'os';
-import { disconnectDatabase, initDatabase } from './config/db';
+import { dbService, disconnectDatabase, initDatabase } from './config/db';
 import enquiryRoutes from './routes/enquiryRoutes';
 import statsRoutes from './routes/statsRoutes';
+import lawyerRoutes from './routes/lawyerRoutes';
+import financeRoutes from './routes/financeRoutes';
+import settingsRoutes from './routes/settingsRoutes';
 import { getOfficeTimeOffsetMinutes } from './utils/time';
 import { validateSmsConfiguration } from './services/smsService';
+import { validateNotificationEncryptionConfiguration } from './services/notificationGatewayService';
+import { startNotificationWorker, stopNotificationWorker } from './services/notificationWorker';
 import {
-  authenticate,
+  authenticateAdmin,
   createAccessToken,
   getLoginUsername,
   validateAuthConfiguration,
   verifyAccessToken,
+  verifyPassword,
 } from './auth';
 
 dotenv.config();
@@ -44,7 +50,7 @@ app.use(cors({
     }
     callback(new Error('Origin is not allowed by CORS'));
   },
-  methods: ['GET', 'POST', 'PATCH', 'OPTIONS'],
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'x-api-key'],
   maxAge: 86400
 }));
@@ -97,16 +103,36 @@ function hasValidApiKey(candidate: string): boolean {
   return crypto.timingSafeEqual(suppliedBuffer, expectedBuffer);
 }
 
-function requireAuthentication(req: Request, res: Response, next: NextFunction): void {
+async function requireAuthentication(req: Request, res: Response, next: NextFunction): Promise<void> {
   const authorization = req.header('authorization') || '';
   const bearerMatch = authorization.match(/^Bearer\s+(.+)$/i);
-  if (bearerMatch && verifyAccessToken(bearerMatch[1])) {
-    next();
-    return;
+  if (bearerMatch) {
+    const verified = verifyAccessToken(bearerMatch[1]);
+    if (verified) {
+      if (verified.lawyerId) {
+        try {
+          const current = await dbService.getLawyerAuthById(verified.lawyerId);
+          if (!current || !current.isActive || current.authVersion !== verified.authVersion) {
+            res.status(401).json({ success: false, message: 'Your account access changed. Please sign in again.' });
+            return;
+          }
+          verified.lawyerName = current.name;
+          verified.role = 'lawyer';
+          verified.assignedTasks = current.assignedTasks;
+        } catch {
+          res.status(503).json({ success: false, message: 'Could not verify your account. Please try again.' });
+          return;
+        }
+      }
+      (req as any).user = verified;
+      next();
+      return;
+    }
   }
 
   const supplied = req.header('x-api-key') || '';
   if (hasValidApiKey(supplied)) {
+    (req as any).user = { sub: 'service-api', role: 'service', lawyerId: null };
     next();
     return;
   }
@@ -114,32 +140,102 @@ function requireAuthentication(req: Request, res: Response, next: NextFunction):
   res.status(401).json({ success: false, message: 'Your login session is missing or has expired.' });
 }
 
+function requireAdmin(req: Request, res: Response, next: NextFunction): void {
+  const user = (req as any).user;
+  if (user?.role === 'admin') {
+    next();
+    return;
+  }
+  res.status(403).json({ success: false, message: 'Administrator access is required for this action.' });
+}
+
 app.use('/api/v1', apiLimiter);
 
-app.post('/api/v1/auth/login', loginLimiter, (req, res) => {
-  const username = typeof req.body?.username === 'string' ? req.body.username : '';
+app.post('/api/v1/auth/login', loginLimiter, async (req, res) => {
+  const username = typeof req.body?.username === 'string' ? req.body.username.trim() : '';
   const password = typeof req.body?.password === 'string' ? req.body.password : '';
-  if (!authenticate(username, password)) {
-    res.status(401).json({ success: false, message: 'Username or password is incorrect.' });
+
+  if (!username || !password) {
+    res.status(400).json({ success: false, message: 'Username and password are required.' });
     return;
   }
 
+  // 1. Check Chamber Master Admin Credentials
+  if (authenticateAdmin(username, password)) {
+    const token = createAccessToken({
+      sub: getLoginUsername(),
+      role: 'admin',
+    });
+    res.json({
+      success: true,
+      data: {
+        token,
+        username: getLoginUsername(),
+        role: 'admin',
+        lawyerId: null,
+      },
+    });
+    return;
+  }
+
+  // 2. Check Junior Lawyer Credentials from database
+  try {
+    const lawyer = await dbService.findLawyerByUsername(username);
+    if (lawyer) {
+      if (!lawyer.isActive) {
+        res.status(403).json({ success: false, message: 'This lawyer account has been deactivated by the admin.' });
+        return;
+      }
+      if (lawyer.passwordHash && verifyPassword(password, lawyer.passwordHash)) {
+        const token = createAccessToken({
+          sub: lawyer.username || lawyer.name,
+          lawyerId: lawyer.id,
+          lawyerName: lawyer.name,
+          role: 'lawyer',
+          assignedTasks: lawyer.assignedTasks || [],
+          authVersion: lawyer.authVersion || 1,
+        });
+        res.json({
+          success: true,
+          data: {
+            token,
+            username: lawyer.username || lawyer.name,
+            lawyerName: lawyer.name,
+            role: 'lawyer',
+            lawyerId: lawyer.id,
+            assignedTasks: lawyer.assignedTasks || [],
+          },
+        });
+        return;
+      }
+    }
+  } catch (dbErr) {
+    console.error('Login database lookup error:', dbErr);
+  }
+
+  res.status(401).json({ success: false, message: 'Username or password is incorrect.' });
+});
+
+app.get('/api/v1/auth/session', requireAuthentication, (req, res) => {
+  const user = (req as any).user;
   res.json({
     success: true,
     data: {
-      token: createAccessToken(),
-      username: getLoginUsername(),
+      username: user.sub,
+      lawyerId: user?.lawyerId || null,
+      lawyerName: user?.lawyerName || null,
+      role: user.role,
+      assignedTasks: user?.assignedTasks || [],
     },
   });
-});
-
-app.get('/api/v1/auth/session', requireAuthentication, (_req, res) => {
-  res.json({ success: true, data: { username: getLoginUsername() } });
 });
 
 app.use('/api/v1', requireAuthentication);
 app.use('/api/v1/enquiries', enquiryRoutes);
 app.use('/api/v1/stats', statsRoutes);
+app.use('/api/v1/lawyers', (req, res, next) => req.method === 'GET' ? next() : requireAdmin(req, res, next), lawyerRoutes);
+app.use('/api/v1/admin/fees', requireAdmin, financeRoutes);
+app.use('/api/v1/settings', requireAdmin, settingsRoutes);
 
 app.use((_req, res) => {
   res.status(404).json({ success: false, message: 'API route not found' });
@@ -176,10 +272,12 @@ async function startServer(): Promise<void> {
     throw new Error('API_KEY must be set to a random value of at least 24 characters in production');
   }
   validateAuthConfiguration(isProduction);
+  validateNotificationEncryptionConfiguration(isProduction);
   validateSmsConfiguration(isProduction);
   getOfficeTimeOffsetMinutes();
 
   await initDatabase();
+  startNotificationWorker();
   const server = http.createServer(app);
   server.listen(PORT, HOST, () => {
     console.log(`Advocate Office Backend API is running on ${HOST}:${PORT}`);
@@ -191,6 +289,7 @@ async function startServer(): Promise<void> {
 
   const shutdown = (signal: string) => {
     console.log(`${signal} received; closing the API server`);
+    stopNotificationWorker();
     server.close(() => {
       disconnectDatabase()
         .then(() => process.exit(0))

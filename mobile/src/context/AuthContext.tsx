@@ -4,15 +4,23 @@ import { apiClient } from '../api/client';
 
 const SESSION_KEY = '@advocate_desk/auth_session';
 
-interface StoredSession {
+export interface StoredSession {
   token: string;
   username: string;
+  lawyerName?: string;
+  role?: string;
+  lawyerId?: string | null;
+  assignedTasks?: string[];
 }
 
-interface AuthContextValue {
+export interface AuthContextValue {
   isReady: boolean;
   isAuthenticated: boolean;
   username: string;
+  lawyerName: string;
+  role: string;
+  lawyerId: string | null;
+  assignedTasks: string[];
   login: (username: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
 }
@@ -22,6 +30,15 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) => {
   const [isReady, setIsReady] = useState(false);
   const [session, setSession] = useState<StoredSession | null>(null);
+
+  useEffect(() => {
+    apiClient.setUnauthorizedHandler(() => {
+      apiClient.setAccessToken(null);
+      setSession(null);
+      void AsyncStorage.removeItem(SESSION_KEY);
+    });
+    return () => apiClient.setUnauthorizedHandler(null);
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -35,7 +52,17 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
         if (!parsed.token || !parsed.username) throw new Error('Invalid stored session');
         apiClient.setAccessToken(parsed.token);
         const confirmed = await apiClient.validateSession();
-        if (active) setSession({ token: parsed.token, username: confirmed.username });
+        if (active) {
+          const updatedSession: StoredSession = {
+            token: parsed.token,
+            username: confirmed.username,
+            lawyerName: confirmed.lawyerName || confirmed.username,
+            role: confirmed.role || parsed.role || 'lawyer',
+            lawyerId: confirmed.lawyerId !== undefined ? confirmed.lawyerId : (parsed.lawyerId || null),
+            assignedTasks: confirmed.assignedTasks || parsed.assignedTasks || [],
+          };
+          setSession(updatedSession);
+        }
       } catch {
         apiClient.setAccessToken(null);
         await AsyncStorage.removeItem(SESSION_KEY).catch(() => undefined);
@@ -54,9 +81,20 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
     isReady,
     isAuthenticated: Boolean(session),
     username: session?.username || '',
+    lawyerName: session?.lawyerName || session?.username || '',
+    role: session?.role || 'lawyer',
+    lawyerId: session?.lawyerId || null,
+    assignedTasks: session?.assignedTasks || [],
     login: async (username: string, password: string) => {
       const authenticated = await apiClient.login(username, password);
-      const nextSession = { token: authenticated.token, username: authenticated.username };
+      const nextSession: StoredSession = {
+        token: authenticated.token,
+        username: authenticated.username,
+        lawyerName: authenticated.lawyerName || authenticated.username,
+        role: authenticated.role || 'lawyer',
+        lawyerId: authenticated.lawyerId || null,
+        assignedTasks: authenticated.assignedTasks || [],
+      };
       apiClient.setAccessToken(nextSession.token);
       await AsyncStorage.setItem(SESSION_KEY, JSON.stringify(nextSession));
       setSession(nextSession);

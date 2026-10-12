@@ -12,7 +12,7 @@ RUN npm ci
 FROM development-dependencies AS build
 COPY tsconfig.json ./
 COPY src ./src
-RUN npm run build && npx prisma generate
+RUN npx prisma generate && npm run build
 
 FROM base AS production-dependencies
 ENV NODE_ENV=production

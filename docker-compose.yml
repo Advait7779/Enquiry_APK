@@ -5,7 +5,7 @@ services:
     environment:
       POSTGRES_DB: advocate_desk
       POSTGRES_USER: advocate
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in Coolify}
     volumes:
       - advocate_postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -20,14 +20,15 @@ services:
     restart: unless-stopped
     environment:
       NODE_ENV: production
-      DATABASE_URL: postgresql://advocate:${POSTGRES_PASSWORD}@database:5432/advocate_desk?schema=public
-      API_KEY: ${API_KEY}
-      LOGIN_USERNAME: ${LOGIN_USERNAME}
-      LOGIN_PASSWORD: ${LOGIN_PASSWORD}
-      AUTH_SECRET: ${AUTH_SECRET}
+      DATABASE_URL: postgresql://advocate:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in Coolify}@database:5432/advocate_desk?schema=public
+      API_KEY: ${API_KEY:?Set API_KEY in Coolify}
+      LOGIN_USERNAME: ${LOGIN_USERNAME:?Set LOGIN_USERNAME in Coolify}
+      LOGIN_PASSWORD: ${LOGIN_PASSWORD:?Set LOGIN_PASSWORD in Coolify}
+      AUTH_SECRET: ${AUTH_SECRET:?Set AUTH_SECRET in Coolify}
+      INTEGRATION_ENCRYPTION_KEY: ${INTEGRATION_ENCRYPTION_KEY:-}
       AUTH_TOKEN_TTL_HOURS: ${AUTH_TOKEN_TTL_HOURS:-168}
       LOGIN_RATE_LIMIT_MAX: ${LOGIN_RATE_LIMIT_MAX:-10}
-      CORS_ORIGIN: ${CORS_ORIGIN:-}
+      CORS_ORIGIN: ${CORS_ORIGIN:?Set the admin HTTPS origin in Coolify}
       RATE_LIMIT_MAX: ${RATE_LIMIT_MAX:-1000}
       OFFICE_TIMEZONE_OFFSET_MINUTES: ${OFFICE_TIMEZONE_OFFSET_MINUTES:-330}
       SMS_NOTIFICATION_URL: ${SMS_NOTIFICATION_URL:-}
@@ -36,6 +37,17 @@ services:
         condition: service_healthy
     expose:
       - "5000"
+
+  admin:
+    build:
+      context: ./admin
+      args:
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-}
+    restart: unless-stopped
+    depends_on:
+      - backend
+    expose:
+      - "80"
 
 volumes:
   advocate_postgres_data:
