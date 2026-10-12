@@ -87,9 +87,17 @@ Use the root `docker-compose.yml` as one Coolify Docker Compose resource.
 4. Assign `https://admin.clients.example.com` to the `admin` service on internal port `80`. Its Nginx configuration proxies `/api` to the backend service. Do not publish a host port for the admin service.
 5. Assign `https://api.clients.example.com` to the `backend` service on internal port `5000` for the Android APK.
 6. Keep the `database` service internal. Do not publish PostgreSQL port `5432`.
-7. Enable HTTPS and deploy. Set `CORS_ORIGIN` to the exact HTTPS origin of the admin portal, without a trailing slash. Keep `VITE_API_BASE_URL` empty for the Compose deployment above. If the admin is deployed as a separate static resource, set `VITE_API_BASE_URL` to the public backend origin as well.
+7. Enable HTTPS and deploy. Set `CORS_ORIGIN` to the exact HTTPS origin of the admin portal, without a trailing slash. Keep `VITE_API_BASE_URL` empty for the Compose deployment above.
 8. Verify `https://api.clients.example.com/api/v1/health`, sign into the admin portal with the master admin account, and configure unique credentials for every junior lawyer before activating their access.
 9. Use **Settings → Test Server Connection** after installing the APK.
+
+### Deploy the admin beside existing Coolify resources
+
+If the backend application and PostgreSQL database already exist as separate Coolify resources, keep them and add the admin as a third application from this repository. Choose the `main` branch, Dockerfile build, base directory `/admin`, Dockerfile location `Dockerfile`, and internal port `80`. Give it its own HTTPS domain, such as `https://admin.clients.example.com`.
+
+Set `VITE_API_BASE_URL` on the admin resource to the backend's public HTTPS origin, such as `https://api.clients.example.com`, with build-time availability enabled. Do not include `/api/v1` in this value. The admin image selects its standalone Nginx configuration when this value is set. Redeploy the admin after any change to this build-time value.
+
+Set `CORS_ORIGIN` on the backend resource to the admin's exact HTTPS origin, without a trailing slash, and redeploy the backend. Confirm that the backend domain responds at `/api/v1/health` before signing into the admin. The existing PostgreSQL resource can be reused; do not create another database for the admin.
 
 The Android app connects directly to the HTTPS backend. After login, it stores a time-limited signed session token; the configured password and signing secret remain only in the backend environment.
 
