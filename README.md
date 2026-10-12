@@ -84,7 +84,7 @@ Use the root `docker-compose.yml` as one Coolify Docker Compose resource.
    VITE_API_BASE_URL=
    ```
 
-4. Assign `https://admin.clients.example.com` to the `admin` service on internal port `4001`. Its Nginx configuration proxies `/api` to the backend service. Do not publish a host port for the admin service.
+4. Assign `https://admin.clients.example.com` to the `admin` service on internal port `4002`. Its Nginx configuration proxies `/api` to the backend service. Do not publish a host port for the admin service.
 5. Assign `https://api.clients.example.com` to the `backend` service on internal port `5000` for the Android APK.
 6. Keep the `database` service internal. Do not publish PostgreSQL port `5432`.
 7. Enable HTTPS and deploy. Set `CORS_ORIGIN` to the exact HTTPS origin of the admin portal, without a trailing slash. Keep `VITE_API_BASE_URL` empty for the Compose deployment above.
@@ -93,7 +93,7 @@ Use the root `docker-compose.yml` as one Coolify Docker Compose resource.
 
 ### Deploy the admin beside existing Coolify resources
 
-If the backend application and PostgreSQL database already exist as separate Coolify resources, keep them and add the admin as a third application from this repository. Choose the `main` branch, Dockerfile build, base directory `/admin`, Dockerfile location `Dockerfile`, and internal port `4001`. Give it its own HTTPS domain, such as `https://admin.clients.example.com`.
+If the backend application and PostgreSQL database already exist as separate Coolify resources, keep them and add the admin as a third application from this repository. Choose the `main` branch, Dockerfile build, base directory `/admin`, Dockerfile location `Dockerfile`, and internal port `4002`. Give it its own HTTPS domain, such as `https://admin.clients.example.com`.
 
 Set `VITE_API_BASE_URL` on the admin resource to the backend's public HTTPS origin, such as `https://api.clients.example.com`, with build-time availability enabled. Do not include `/api/v1` in this value. The admin image selects its standalone Nginx configuration when this value is set. Redeploy the admin after any change to this build-time value.
 
