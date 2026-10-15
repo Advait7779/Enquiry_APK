@@ -78,6 +78,7 @@ export const LawyersTab: React.FC<LawyersTabProps> = ({ lawyers, onRefresh }) =>
     setPhone(lawyer.phone || '');
     setEmail(lawyer.email || '');
     setSelectedTasks(lawyer.assignedTasks || []);
+    setCustomTaskInput('');
     setFormError('');
     setShowAddModal(true);
   };
@@ -103,19 +104,33 @@ export const LawyersTab: React.FC<LawyersTabProps> = ({ lawyers, onRefresh }) =>
   }, [showAddModal, isSubmitting]);
 
   const toggleTask = (task: string) => {
-    if (selectedTasks.includes(task)) {
-      setSelectedTasks(selectedTasks.filter((t) => t !== task));
-    } else {
-      setSelectedTasks([...selectedTasks, task]);
+    setSelectedTasks((current) => current.includes(task)
+      ? current.filter((selected) => selected !== task)
+      : [...current, task]);
+  };
+
+  const tasksIncludingCustomInput = (): string[] | null => {
+    const task = customTaskInput.trim();
+    if (!task) return selectedTasks;
+    if (task.length < 2 || task.length > 200) {
+      setFormError('Custom legal work must be between 2 and 200 characters.');
+      return null;
     }
+    if (selectedTasks.some((selected) => selected.toLowerCase() === task.toLowerCase())) return selectedTasks;
+    if (selectedTasks.length >= 50) {
+      setFormError('You can assign up to 50 legal works to a lawyer.');
+      return null;
+    }
+    return [...selectedTasks, task];
   };
 
   const addCustomTask = () => {
-    const t = customTaskInput.trim();
-    if (t && !selectedTasks.includes(t)) {
-      setSelectedTasks([...selectedTasks, t]);
-      setCustomTaskInput('');
-    }
+    if (!customTaskInput.trim()) return;
+    const tasks = tasksIncludingCustomInput();
+    if (!tasks) return;
+    setSelectedTasks(tasks);
+    setCustomTaskInput('');
+    setFormError('');
   };
 
   const handleSaveLawyer = async (e: React.FormEvent) => {
@@ -145,6 +160,8 @@ export const LawyersTab: React.FC<LawyersTabProps> = ({ lawyers, onRefresh }) =>
       setFormError('Enter a valid phone number.');
       return;
     }
+    const assignedTasks = tasksIncludingCustomInput();
+    if (!assignedTasks) return;
 
     setIsSubmitting(true);
     setFormError('');
@@ -156,7 +173,7 @@ export const LawyersTab: React.FC<LawyersTabProps> = ({ lawyers, onRefresh }) =>
           password: password.trim() || undefined,
           phone: phone.trim() || undefined,
           email: email.trim() || undefined,
-          assignedTasks: selectedTasks,
+          assignedTasks,
         });
       } else {
         await adminApi.createLawyer({
@@ -165,7 +182,7 @@ export const LawyersTab: React.FC<LawyersTabProps> = ({ lawyers, onRefresh }) =>
           password: password,
           phone: phone.trim() || undefined,
           email: email.trim() || undefined,
-          assignedTasks: selectedTasks,
+          assignedTasks,
         });
       }
       resetForm();
@@ -535,6 +552,19 @@ export const LawyersTab: React.FC<LawyersTabProps> = ({ lawyers, onRefresh }) =>
                             </button>
                           );
                         })}
+                        {selectedTasks.filter((task) => !COMMON_LEGAL_TASKS.includes(task)).map((task) => (
+                          <button
+                            type="button"
+                            key={task}
+                            onClick={() => toggleTask(task)}
+                            aria-label={`Remove custom legal work ${task}`}
+                            className="text-xs px-2.5 py-1.5 rounded-lg border font-semibold flex items-center space-x-1.5 bg-[#FBF4E6] text-[#B48328] border-[#C89B3C] shadow-sm text-left"
+                          >
+                            <CheckCircle2 className="w-3.5 h-3.5 text-[#C89B3C] shrink-0" />
+                            <span>{task}</span>
+                            <X className="w-3 h-3 shrink-0" />
+                          </button>
+                        ))}
                       </div>
                     </div>
 
@@ -546,6 +576,8 @@ export const LawyersTab: React.FC<LawyersTabProps> = ({ lawyers, onRefresh }) =>
                           placeholder="Add custom legal task..."
                           value={customTaskInput}
                           onChange={(e) => setCustomTaskInput(e.target.value)}
+                          maxLength={200}
+                          aria-label="Custom legal work"
                           onKeyDown={(e) => {
                             if (e.key === 'Enter') {
                               e.preventDefault();
@@ -563,6 +595,7 @@ export const LawyersTab: React.FC<LawyersTabProps> = ({ lawyers, onRefresh }) =>
                           <span>Add Tag</span>
                         </button>
                       </div>
+                      <p className="mt-1.5 text-[10px] text-[#64748B]">Typed custom work is also assigned when you save.</p>
                     </div>
                   </div>
                 </div>
