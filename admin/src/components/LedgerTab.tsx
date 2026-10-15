@@ -9,6 +9,10 @@ import {
   User,
   ChevronDown,
   Check,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
 } from 'lucide-react';
 import { FeeTransaction, ILawyer } from '../types';
 import { adminApi, LedgerFilters } from '../api';
@@ -59,7 +63,7 @@ export const LedgerTab: React.FC<LedgerTabProps> = ({
   }, []);
 
   // Filters state
-  const [periodPreset, setPeriodPreset] = useState<LedgerPeriod>('today');
+  const [periodPreset, setPeriodPreset] = useState<LedgerPeriod>('all');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [activeLawyerId, setActiveLawyerId] = useState(selectedLawyerId);
@@ -67,7 +71,26 @@ export const LedgerTab: React.FC<LedgerTabProps> = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [page, setPage] = useState(1);
-  const pageSize = 50;
+  const [pageSize, setPageSize] = useState<number>(10);
+
+  const handlePageSizeChange = (newSize: number) => {
+    if (pageSize === newSize) return;
+    setPageSize(newSize);
+    setPage(1);
+  };
+
+  const getPaginationItems = (currentPage: number, total: number): (number | 'ellipsis-prev' | 'ellipsis-next')[] => {
+    if (total <= 7) {
+      return Array.from({ length: total }, (_, i) => i + 1);
+    }
+    if (currentPage <= 4) {
+      return [1, 2, 3, 4, 5, 'ellipsis-next', total];
+    }
+    if (currentPage >= total - 3) {
+      return [1, 'ellipsis-prev', total - 4, total - 3, total - 2, total - 1, total];
+    }
+    return [1, 'ellipsis-prev', currentPage - 1, currentPage, currentPage + 1, 'ellipsis-next', total];
+  };
 
   useEffect(() => {
     if (selectedLawyerId) {
@@ -93,7 +116,7 @@ export const LedgerTab: React.FC<LedgerTabProps> = ({
       pageSize,
       includePagination,
     });
-  }, [activeLawyerId, taskFilter, debouncedSearch, page, periodPreset, startDate, endDate]);
+  }, [activeLawyerId, taskFilter, debouncedSearch, page, pageSize, periodPreset, startDate, endDate]);
 
   const loadLedger = useCallback(async () => {
     setLoading(true);
@@ -461,6 +484,69 @@ export const LedgerTab: React.FC<LedgerTabProps> = ({
 
       {/* Main Ledger Table */}
       <div className="bg-white rounded-xl border border-[#E2E8F0] shadow-sm overflow-hidden">
+        {/* Table Top Header: Audit Trail Title + Top-Right Pagination Controls */}
+        <div className="no-print px-4 py-3 bg-[#F8FAFC] border-b border-[#E2E8F0] flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center space-x-2">
+            <span className="text-xs font-bold text-[#0F172A] uppercase tracking-wider">Audit Trail Records</span>
+            {totalCount > 0 && (
+              <span className="bg-[#E2E8F0] text-[#334155] text-[11px] font-bold px-2 py-0.5 rounded-full">
+                {totalCount} total
+              </span>
+            )}
+          </div>
+
+          {/* Right Top Pagination Controls */}
+          <div className="flex items-center space-x-3 ml-auto">
+            {/* Page Size Dropdown */}
+            <div className="flex items-center space-x-1.5 text-xs text-[#475569]">
+              <label htmlFor="ledger-rows-per-page" className="font-semibold text-[11px] text-[#475569]">
+                Rows per page:
+              </label>
+              <div className="relative inline-flex items-center">
+                <select
+                  id="ledger-rows-per-page"
+                  value={pageSize}
+                  onChange={(e) => handlePageSizeChange(Number(e.target.value))}
+                  className="appearance-none bg-white border border-[#CBD5E1] hover:border-[#0F1E36] focus:border-[#0F1E36] text-[#0F172A] text-xs font-bold rounded-lg pl-3 pr-7 py-1 focus:outline-none focus:ring-2 focus:ring-[#0F1E36]/20 shadow-xs cursor-pointer transition"
+                >
+                  <option value={5}>5</option>
+                  <option value={10}>10</option>
+                  <option value={15}>15</option>
+                  <option value={20}>20</option>
+                </select>
+                <ChevronDown className="w-3.5 h-3.5 text-[#64748B] pointer-events-none absolute right-2" />
+              </div>
+            </div>
+
+            {/* Quick Page Jump Arrows */}
+            {totalPages > 1 && (
+              <div className="flex items-center space-x-1 text-xs text-[#475569] border-l border-[#CBD5E1] pl-3">
+                <span className="font-bold text-[11px] text-[#0F172A] min-w-[44px] text-center">
+                  {page} / {totalPages}
+                </span>
+                <button
+                  type="button"
+                  title="Previous Page"
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  disabled={page <= 1}
+                  className="p-1 rounded-md border border-[#CBD5E1] bg-white hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed transition"
+                >
+                  <ChevronLeft className="w-3.5 h-3.5 text-[#0F1E36]" />
+                </button>
+                <button
+                  type="button"
+                  title="Next Page"
+                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                  disabled={page >= totalPages}
+                  className="p-1 rounded-md border border-[#CBD5E1] bg-white hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed transition"
+                >
+                  <ChevronRight className="w-3.5 h-3.5 text-[#0F1E36]" />
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+
         {loading ? (
           <div className="py-16 text-center">
             <div className="w-7 h-7 border-4 border-[#C89B3C] border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
@@ -554,25 +640,134 @@ export const LedgerTab: React.FC<LedgerTabProps> = ({
       )}
     </div>
 
-      {!loading && totalPages > 1 && (
-        <div className="no-print flex items-center justify-between rounded-xl border border-[#E2E8F0] bg-white px-4 py-3 text-xs shadow-sm">
-          <span className="font-semibold text-[#475569]">Page {page} of {totalPages} · {totalCount} records</span>
-          <div className="flex gap-2">
+      {!loading && totalCount > 0 && (
+        <div className="no-print flex flex-col sm:flex-row items-center justify-between gap-3 rounded-xl border border-[#E2E8F0] bg-white px-4 py-3 text-xs shadow-sm">
+          {/* Summary / Range text */}
+          <div className="text-[#475569] font-medium text-center sm:text-left">
+            Showing <span className="font-bold text-[#0F172A]">{(page - 1) * pageSize + 1}</span> to{' '}
+            <span className="font-bold text-[#0F172A]">{Math.min(page * pageSize, totalCount)}</span> of{' '}
+            <span className="font-bold text-[#0F172A]">{totalCount}</span> records · Page{' '}
+            <span className="font-bold text-[#0F172A]">{page}</span> of{' '}
+            <span className="font-bold text-[#0F172A]">{totalPages}</span>
+          </div>
+
+          {/* Navigation Controls: Multi-page jump arrows, single-page arrows, numbered pages */}
+          <div className="flex items-center flex-wrap justify-center gap-1">
+            {/* First Page (<<) */}
+            <button
+              type="button"
+              onClick={() => setPage(1)}
+              disabled={page <= 1}
+              title="First Page"
+              className="h-8 min-w-[32px] px-2 rounded-lg border border-[#CBD5E1] bg-white font-bold text-[#0F1E36] hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed transition flex items-center justify-center shadow-xs"
+            >
+              <ChevronsLeft className="w-4 h-4" />
+            </button>
+
+            {/* Return Multiple (-5) Pages */}
+            {totalPages > 5 && (
+              <button
+                type="button"
+                onClick={() => setPage((current) => Math.max(1, current - 5))}
+                disabled={page <= 1}
+                title="Return 5 pages"
+                className="h-8 px-2 rounded-lg border border-[#CBD5E1] bg-white font-extrabold text-[#0F1E36] hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed transition text-[11px] shadow-xs"
+              >
+                -5
+              </button>
+            )}
+
+            {/* Previous Page (<) */}
             <button
               type="button"
               onClick={() => setPage((current) => Math.max(1, current - 1))}
               disabled={page <= 1}
-              className="rounded-lg border border-[#CBD5E1] px-3 py-1.5 font-bold text-[#0F1E36] disabled:cursor-not-allowed disabled:opacity-40"
+              title="Previous Page"
+              className="h-8 min-w-[32px] px-2 rounded-lg border border-[#CBD5E1] bg-white font-bold text-[#0F1E36] hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed transition flex items-center justify-center shadow-xs"
             >
-              Previous
+              <ChevronLeft className="w-4 h-4" />
             </button>
+
+            {/* Numbered Page Buttons with Ellipsis */}
+            <div className="flex items-center gap-1 mx-0.5">
+              {getPaginationItems(page, totalPages).map((item, idx) => {
+                if (item === 'ellipsis-prev') {
+                  return (
+                    <button
+                      key={`ell-prev-${idx}`}
+                      type="button"
+                      onClick={() => setPage((current) => Math.max(1, current - 5))}
+                      title="Jump back 5 pages"
+                      className="h-8 min-w-[32px] px-2 rounded-lg border border-transparent hover:border-[#CBD5E1] bg-transparent hover:bg-slate-100 font-bold text-[#64748B] hover:text-[#0F1E36] transition flex items-center justify-center text-xs"
+                    >
+                      ...
+                    </button>
+                  );
+                }
+                if (item === 'ellipsis-next') {
+                  return (
+                    <button
+                      key={`ell-next-${idx}`}
+                      type="button"
+                      onClick={() => setPage((current) => Math.min(totalPages, current + 5))}
+                      title="Jump forward 5 pages"
+                      className="h-8 min-w-[32px] px-2 rounded-lg border border-transparent hover:border-[#CBD5E1] bg-transparent hover:bg-slate-100 font-bold text-[#64748B] hover:text-[#0F1E36] transition flex items-center justify-center text-xs"
+                    >
+                      ...
+                    </button>
+                  );
+                }
+                const isCurrent = item === page;
+                return (
+                  <button
+                    key={item}
+                    type="button"
+                    onClick={() => setPage(item)}
+                    className={`h-8 min-w-[32px] px-2.5 rounded-lg text-xs font-bold transition flex items-center justify-center shadow-xs ${
+                      isCurrent
+                        ? 'bg-[#0F1E36] text-white border border-[#0F1E36] shadow-sm'
+                        : 'border border-[#CBD5E1] bg-white text-[#334155] hover:bg-slate-100 hover:text-[#0F172A]'
+                    }`}
+                  >
+                    {item}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Next Page (>) */}
             <button
               type="button"
               onClick={() => setPage((current) => Math.min(totalPages, current + 1))}
               disabled={page >= totalPages}
-              className="rounded-lg bg-[#0F1E36] px-3 py-1.5 font-bold text-white disabled:cursor-not-allowed disabled:opacity-40"
+              title="Next Page"
+              className="h-8 min-w-[32px] px-2 rounded-lg border border-[#CBD5E1] bg-white font-bold text-[#0F1E36] hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed transition flex items-center justify-center shadow-xs"
             >
-              Next
+              <ChevronRight className="w-4 h-4" />
+            </button>
+
+            {/* Advance Multiple (+5) Pages */}
+            {totalPages > 5 && (
+              <button
+                type="button"
+                onClick={() => setPage((current) => Math.min(totalPages, current + 5))}
+                disabled={page >= totalPages}
+                title="Forward 5 pages"
+                className="h-8 px-2 rounded-lg border border-[#CBD5E1] bg-white font-extrabold text-[#0F1E36] hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed transition text-[11px] shadow-xs"
+              >
+                +5
+              </button>
+            )}
+
+            {/* Last Page (>>) */}
+            <button
+              type="button"
+              onClick={() => setPage(totalPages)}
+              disabled={page >= totalPages}
+              title="Last Page"
+              className="h-8 min-w-[32px] px-2 rounded-lg border border-[#CBD5E1] bg-white font-bold text-[#0F1E36] hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed transition flex items-center justify-center shadow-xs"
+            >
+              <ChevronsRight className="w-4 h-4" />
             </button>
           </div>
         </div>
