@@ -1,32 +1,29 @@
 import React from 'react';
-import { Menu, RefreshCw, ShieldCheck } from 'lucide-react';
-import { adminApi } from '../api';
+import { Menu } from 'lucide-react';
 
 import { AdminTab } from './Sidebar';
 
 interface TopBarProps {
   activeTab: AdminTab;
   onOpenMobileSidebar: () => void;
-  onRefresh: () => void;
-  isRefreshing: boolean;
+  onRefresh?: () => void;
+  isRefreshing?: boolean;
 }
 
 export const TopBar: React.FC<TopBarProps> = ({
   activeTab,
   onOpenMobileSidebar,
-  onRefresh,
-  isRefreshing,
 }) => {
   const getTabTitle = () => {
     switch (activeTab) {
       case 'overview':
-        return 'Revenue & Overview';
+        return 'Overview';
       case 'ledger':
-        return 'Day / Date / Time Fees Ledger';
+        return 'Fees Ledger';
       case 'lawyers':
-        return 'Junior Lawyers & Task Assignments';
+        return 'Lawyers';
       case 'settings':
-        return 'Settings & Integrations';
+        return 'Settings';
       default:
         return 'Chamber Portal';
     }
@@ -35,13 +32,13 @@ export const TopBar: React.FC<TopBarProps> = ({
   const getTabSubtitle = () => {
     switch (activeTab) {
       case 'overview':
-        return "Live fees collections & junior advocate financial performance";
+        return 'Live revenue collections & financial performance';
       case 'ledger':
-        return 'Complete chronological audit trail with date, day, time, and lawyer breakdown';
+        return 'Detailed audit trail and fee collection records';
       case 'lawyers':
-        return 'Manage junior advocates and assign specialized legal tasks / domains';
+        return 'Manage junior lawyers and task assignments';
       case 'settings':
-        return 'Configure SMS, RCS, WhatsApp, and Voice Call notification gateways';
+        return 'Notification channels and system configurations';
       default:
         return '';
     }
@@ -67,25 +64,6 @@ export const TopBar: React.FC<TopBarProps> = ({
             {getTabSubtitle()}
           </p>
         </div>
-      </div>
-
-      {/* Right: Quick Status & Refresh */}
-      <div className="flex items-center space-x-2 sm:space-x-3 shrink-0">
-        <div className="hidden sm:flex items-center space-x-1.5 px-3 py-1 rounded-full bg-[#F4F6F9] border border-[#E2E8F0] text-xs font-semibold text-[#475569]">
-          <ShieldCheck className="w-4 h-4 text-emerald-600" />
-          <span>{adminApi.getUsername()} (Admin)</span>
-        </div>
-
-        <button
-          onClick={onRefresh}
-          aria-label="Refresh current chamber data"
-          disabled={isRefreshing}
-          className="flex items-center justify-center space-x-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg bg-[#0F1E36] hover:bg-[#1E293B] text-white text-xs font-bold transition shadow-sm"
-          title="Refresh Data"
-        >
-          <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin text-[#C89B3C]' : ''}`} />
-          <span className="hidden sm:inline">{isRefreshing ? 'Syncing...' : 'Refresh'}</span>
-        </button>
       </div>
     </header>
   );

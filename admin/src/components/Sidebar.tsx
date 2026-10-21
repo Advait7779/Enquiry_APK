@@ -31,26 +31,26 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const navItems = [
     {
       id: 'overview' as const,
-      label: 'Revenue & Overview',
-      subtitle: 'Chamber KPIs & Collections',
+      label: 'Overview',
+      subtitle: 'Revenue & Analytics',
       icon: BarChart3,
     },
     {
       id: 'ledger' as const,
-      label: 'Day/Date/Time Fees Ledger',
-      subtitle: 'Complete Audit & Export',
+      label: 'Fees Ledger',
+      subtitle: 'Transactions & Audit',
       icon: FileSpreadsheet,
     },
     {
       id: 'lawyers' as const,
-      label: 'Junior Lawyers & Tasks',
-      subtitle: 'Work & Domain Assignments',
+      label: 'Lawyers',
+      subtitle: 'Team & Tasks',
       icon: Users,
     },
     {
       id: 'settings' as const,
-      label: 'Settings & Integrations',
-      subtitle: 'SMS, RCS, WhatsApp & Voice API',
+      label: 'Settings',
+      subtitle: 'Notifications & Setup',
       icon: Settings,
     },
   ];

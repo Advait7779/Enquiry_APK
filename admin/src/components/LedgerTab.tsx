@@ -45,14 +45,25 @@ export const LedgerTab: React.FC<LedgerTabProps> = ({
   const [lawyerDropdownOpen, setLawyerDropdownOpen] = useState(false);
   const lawyerDropdownRef = useRef<HTMLDivElement>(null);
 
+  // Custom themed page size dropdown state
+  const [pageSizeDropdownOpen, setPageSizeDropdownOpen] = useState(false);
+  const pageSizeDropdownRef = useRef<HTMLDivElement>(null);
+
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
-      if (lawyerDropdownRef.current && !lawyerDropdownRef.current.contains(e.target as Node)) {
+      const target = e.target as Node;
+      if (lawyerDropdownRef.current && !lawyerDropdownRef.current.contains(target)) {
         setLawyerDropdownOpen(false);
+      }
+      if (pageSizeDropdownRef.current && !pageSizeDropdownRef.current.contains(target)) {
+        setPageSizeDropdownOpen(false);
       }
     };
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setLawyerDropdownOpen(false);
+      if (e.key === 'Escape') {
+        setLawyerDropdownOpen(false);
+        setPageSizeDropdownOpen(false);
+      }
     };
     document.addEventListener('mousedown', handleClickOutside);
     document.addEventListener('keydown', handleKeyDown);
@@ -350,18 +361,18 @@ export const LedgerTab: React.FC<LedgerTabProps> = ({
                   <ChevronDown className={`w-3.5 h-3.5 text-[#C89B3C] shrink-0 transition-transform duration-200 ${lawyerDropdownOpen ? 'rotate-180' : ''}`} />
                 </button>
 
-                {/* Custom Themed Options Dropdown Menu - Reduced Width */}
+                {/* Custom White Themed Options Dropdown Menu */}
                 {lawyerDropdownOpen && (
                   <div
                     role="listbox"
-                    className="absolute left-0 top-full mt-1 w-full sm:w-56 z-50 bg-[#0F1E36] border border-[#1E293B] rounded-xl shadow-2xl p-1 text-xs text-white"
+                    className="absolute left-0 top-full mt-1.5 w-full sm:w-60 z-50 bg-white border border-[#CBD5E1] rounded-xl shadow-xl p-1.5 text-xs text-[#0F172A]"
                   >
-                    <div className="px-2 py-1 text-[9px] font-extrabold uppercase tracking-wider text-[#C89B3C] border-b border-[#1E293B] flex items-center justify-between">
+                    <div className="px-2.5 py-1.5 text-[10px] font-extrabold uppercase tracking-wider text-[#64748B] border-b border-[#E2E8F0] flex items-center justify-between">
                       <span>Associates</span>
-                      <span className="text-[9px] text-slate-400 font-normal">{lawyers.length} active</span>
+                      <span className="text-[10px] text-[#94A3B8] font-semibold">{lawyers.length} active</span>
                     </div>
 
-                    <div className="py-0.5 max-h-64 overflow-y-auto space-y-0.5">
+                    <div className="py-1 max-h-64 overflow-y-auto space-y-0.5">
                       {/* All Junior Lawyers */}
                       <button
                         type="button"
@@ -373,17 +384,17 @@ export const LedgerTab: React.FC<LedgerTabProps> = ({
                           if (onClearSelectedLawyer) onClearSelectedLawyer();
                           setLawyerDropdownOpen(false);
                         }}
-                        className={`w-full text-left px-2 py-1.5 rounded-lg flex items-center justify-between transition-colors ${
+                        className={`w-full text-left px-2.5 py-2 rounded-lg flex items-center justify-between font-semibold transition-colors ${
                           !activeLawyerId
-                            ? 'bg-[#1E293B] text-[#C89B3C] font-bold shadow-sm'
-                            : 'text-slate-300 hover:bg-[#1E293B]/70 hover:text-white'
+                            ? 'bg-[#F1F5F9] text-[#0F172A] font-bold'
+                            : 'text-[#334155] hover:bg-slate-50 hover:text-[#0F172A]'
                         }`}
                       >
-                        <div className="flex items-center space-x-1.5 truncate">
-                          <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${!activeLawyerId ? 'bg-[#C89B3C]' : 'bg-slate-500'}`}></span>
-                          <span className="truncate text-[11px]">All Junior Lawyers</span>
+                        <div className="flex items-center space-x-2 truncate">
+                          <span className={`w-2 h-2 rounded-full shrink-0 ${!activeLawyerId ? 'bg-[#C89B3C]' : 'bg-slate-300'}`}></span>
+                          <span className="truncate text-xs">All Junior Lawyers</span>
                         </div>
-                        {!activeLawyerId && <Check className="w-3 h-3 text-[#C89B3C] shrink-0" />}
+                        {!activeLawyerId && <Check className="w-4 h-4 text-[#0F1E36] shrink-0" />}
                       </button>
 
                       {/* Each Junior Lawyer */}
@@ -400,19 +411,19 @@ export const LedgerTab: React.FC<LedgerTabProps> = ({
                               setPage(1);
                               setLawyerDropdownOpen(false);
                             }}
-                            className={`w-full text-left px-2 py-1.5 rounded-lg flex items-center justify-between transition-colors ${
+                            className={`w-full text-left px-2.5 py-2 rounded-lg flex items-center justify-between font-semibold transition-colors ${
                               isSelected
-                                ? 'bg-[#1E293B] text-[#C89B3C] font-bold shadow-sm'
-                                : 'text-slate-300 hover:bg-[#1E293B]/70 hover:text-white'
+                                ? 'bg-[#F1F5F9] text-[#0F172A] font-bold'
+                                : 'text-[#334155] hover:bg-slate-50 hover:text-[#0F172A]'
                             }`}
                           >
-                            <div className="flex items-center space-x-1.5 truncate">
-                              <div className="w-4 h-4 rounded-full bg-[#0A1526] border border-[#1E293B] text-[8px] font-bold flex items-center justify-center text-slate-300 shrink-0">
+                            <div className="flex items-center space-x-2 truncate">
+                              <div className="w-5 h-5 rounded-full bg-[#F1F5F9] border border-[#CBD5E1] text-[9px] font-bold flex items-center justify-center text-[#0F1E36] shrink-0">
                                 {l.name.replace('Adv. ', '').slice(0, 2).toUpperCase()}
                               </div>
-                              <span className="truncate text-[11px]">{l.name}</span>
+                              <span className="truncate text-xs">{l.name}</span>
                             </div>
-                            {isSelected && <Check className="w-3 h-3 text-[#C89B3C] shrink-0" />}
+                            {isSelected && <Check className="w-4 h-4 text-[#0F1E36] shrink-0" />}
                           </button>
                         );
                       })}
@@ -483,9 +494,9 @@ export const LedgerTab: React.FC<LedgerTabProps> = ({
       </div>
 
       {/* Main Ledger Table */}
-      <div className="bg-white rounded-xl border border-[#E2E8F0] shadow-sm overflow-hidden">
+      <div className="bg-white rounded-xl border border-[#E2E8F0] shadow-sm">
         {/* Table Top Header: Audit Trail Title + Top-Right Pagination Controls */}
-        <div className="no-print px-4 py-3 bg-[#F8FAFC] border-b border-[#E2E8F0] flex flex-wrap items-center justify-between gap-3">
+        <div className="no-print px-4 py-3 bg-[#F8FAFC] border-b border-[#E2E8F0] rounded-t-xl flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center space-x-2">
             <span className="text-xs font-bold text-[#0F172A] uppercase tracking-wider">Audit Trail Records</span>
             {totalCount > 0 && (
@@ -497,24 +508,58 @@ export const LedgerTab: React.FC<LedgerTabProps> = ({
 
           {/* Right Top Pagination Controls */}
           <div className="flex items-center space-x-3 ml-auto">
-            {/* Page Size Dropdown */}
+            {/* Custom Themed Page Size Dropdown */}
             <div className="flex items-center space-x-1.5 text-xs text-[#475569]">
-              <label htmlFor="ledger-rows-per-page" className="font-semibold text-[11px] text-[#475569]">
+              <span className="font-semibold text-[11px] text-[#475569]">
                 Rows per page:
-              </label>
-              <div className="relative inline-flex items-center">
-                <select
-                  id="ledger-rows-per-page"
-                  value={pageSize}
-                  onChange={(e) => handlePageSizeChange(Number(e.target.value))}
-                  className="appearance-none bg-white border border-[#CBD5E1] hover:border-[#0F1E36] focus:border-[#0F1E36] text-[#0F172A] text-xs font-bold rounded-lg pl-3 pr-7 py-1 focus:outline-none focus:ring-2 focus:ring-[#0F1E36]/20 shadow-xs cursor-pointer transition"
+              </span>
+              <div ref={pageSizeDropdownRef} className="relative inline-block text-left">
+                <button
+                  type="button"
+                  onClick={() => setPageSizeDropdownOpen((prev) => !prev)}
+                  aria-haspopup="listbox"
+                  aria-expanded={pageSizeDropdownOpen}
+                  className="h-8 min-w-[56px] px-2.5 rounded-lg border border-[#CBD5E1] hover:border-[#0F1E36] bg-white font-bold text-xs text-[#0F172A] focus:outline-none focus:ring-2 focus:ring-[#0F1E36]/20 flex items-center justify-between gap-1.5 shadow-xs transition"
                 >
-                  <option value={5}>5</option>
-                  <option value={10}>10</option>
-                  <option value={15}>15</option>
-                  <option value={20}>20</option>
-                </select>
-                <ChevronDown className="w-3.5 h-3.5 text-[#64748B] pointer-events-none absolute right-2" />
+                  <span>{pageSize}</span>
+                  <ChevronDown
+                    className={`w-3.5 h-3.5 text-[#64748B] transition-transform duration-200 ${
+                      pageSizeDropdownOpen ? 'rotate-180 text-[#0F1E36]' : ''
+                    }`}
+                  />
+                </button>
+
+                {/* Themed White Options Dropdown Menu */}
+                {pageSizeDropdownOpen && (
+                  <div
+                    role="listbox"
+                    className="absolute right-0 top-full mt-1.5 w-24 z-50 bg-white border border-[#CBD5E1] rounded-xl shadow-xl p-1 text-xs text-[#0F172A]"
+                  >
+                    {[5, 10, 15, 20].map((size) => {
+                      const isSelected = pageSize === size;
+                      return (
+                        <button
+                          key={size}
+                          type="button"
+                          role="option"
+                          aria-selected={isSelected}
+                          onClick={() => {
+                            handlePageSizeChange(size);
+                            setPageSizeDropdownOpen(false);
+                          }}
+                          className={`w-full text-left px-2.5 py-1.5 rounded-lg flex items-center justify-between font-bold transition-colors ${
+                            isSelected
+                              ? 'bg-[#F1F5F9] text-[#0F172A]'
+                              : 'text-[#334155] hover:bg-slate-50 hover:text-[#0F172A]'
+                          }`}
+                        >
+                          <span>{size}</span>
+                          {isSelected && <Check className="w-3.5 h-3.5 text-[#0F1E36] shrink-0" />}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             </div>
 
@@ -564,7 +609,7 @@ export const LedgerTab: React.FC<LedgerTabProps> = ({
               <span>Fees Ledger Audit Trail</span>
               <span className="text-[#C89B3C] font-bold">⇄ Swipe horizontally</span>
             </div>
-            <div className="ledger-table-scroll overflow-x-auto">
+            <div className="ledger-table-scroll overflow-x-auto rounded-b-xl">
               <table className="w-full text-left text-xs min-w-[760px]">
               <thead className="bg-[#0F1E36] text-white font-semibold border-b border-[#1E293B] uppercase tracking-wider text-[11px]">
                 <tr>
