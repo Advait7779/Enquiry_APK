@@ -6,6 +6,7 @@ import {
   FlatList,
   TextInput,
   ActivityIndicator,
+  AppState,
 } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useIsFocused, useNavigation } from '@react-navigation/native';
@@ -48,12 +49,12 @@ export const RegisterScreen: React.FC = () => {
 
   const filter = { ...getPeriodRange(periodFilter), search: debouncedSearch || undefined };
 
-  const fetchEnquiries = useCallback(async (silent = false) => {
+  const fetchEnquiries = useCallback(async (silent = false, signal?: AbortSignal) => {
     const requestId = ++requestSequence.current;
     try {
       if (!silent) setLoading(true);
       setLoadError('');
-      const page = await apiClient.getEnquiryPage(filter, currentPage, PAGE_SIZE);
+      const page = await apiClient.getEnquiryPage(filter, currentPage, PAGE_SIZE, signal);
       if (requestId !== requestSequence.current) return;
       setRecords(page.items);
       setTotalRecords(page.total);
@@ -77,10 +78,18 @@ export const RegisterScreen: React.FC = () => {
 
   useEffect(() => {
     if (!isFocused) return;
-    fetchEnquiries();
-    const timer = setInterval(() => fetchEnquiries(true), 15000);
+    const controller = new AbortController();
+    fetchEnquiries(false, controller.signal);
+    const timer = setInterval(() => {
+      if (AppState.currentState === 'active') fetchEnquiries(true, controller.signal);
+    }, 15000);
+    const appStateSubscription = AppState.addEventListener('change', (state) => {
+      if (state === 'active') fetchEnquiries(true, controller.signal);
+    });
     return () => {
       clearInterval(timer);
+      appStateSubscription.remove();
+      controller.abort();
       requestSequence.current += 1;
     };
   }, [isFocused, fetchEnquiries]);

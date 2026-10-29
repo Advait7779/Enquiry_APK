@@ -98,7 +98,8 @@ async function readWithRetry<T>(operation: () => Promise<T>): Promise<T> {
   } catch (error) {
     const axiosError = error as AxiosError;
     const status = axiosError.response?.status;
-    const retryable = axiosError.isAxiosError && (!axiosError.response || status === 502 || status === 503 || status === 504);
+    const retryable = axiosError.isAxiosError && axiosError.code !== 'ERR_CANCELED' &&
+      (!axiosError.response || status === 502 || status === 503 || status === 504);
     if (!retryable) throw error;
     await new Promise((resolve) => setTimeout(resolve, 350));
     return operation();
@@ -155,10 +156,12 @@ export const apiClient = {
     filter: EnquiryFilter = {},
     page = 1,
     pageSize = 10,
+    signal?: AbortSignal,
   ): Promise<EnquiryPage> {
     try {
       const response = await readWithRetry(() => axios.get(`${baseUrl}/enquiries`, {
         ...requestOptions(8000),
+        signal,
         params: { ...filter, page, pageSize },
       }));
       const items = assertData<IEnquiry[]>(response.data, 'The server returned an invalid enquiry list.');
@@ -172,14 +175,11 @@ export const apiClient = {
     }
   },
 
-  async getEnquiries(filter: EnquiryFilter = {}): Promise<IEnquiry[]> {
-    const page = await this.getEnquiryPage(filter, 1, 200);
-    return page.items;
-  },
-
-  async getEnquiryById(id: string): Promise<IEnquiry | null> {
+  async getEnquiryById(id: string, signal?: AbortSignal): Promise<IEnquiry | null> {
     try {
-      const response = await readWithRetry(() => axios.get(`${baseUrl}/enquiries/${encodeURIComponent(id)}`, requestOptions(8000)));
+      const response = await readWithRetry(() => axios.get(`${baseUrl}/enquiries/${encodeURIComponent(id)}`, {
+        ...requestOptions(8000), signal,
+      }));
       return assertData<IEnquiry>(response.data, 'The server returned an invalid enquiry.');
     } catch (error) {
       if ((error as AxiosError).response?.status === 404) return null;

@@ -37,11 +37,13 @@ export const lawyerController = {
         res.status(403).json({ success: false, message: 'This account cannot access lawyer profiles.' });
         return;
       }
-      const lawyers = await dbService.getLawyers(user?.role === 'admin' ? onlyActive : true);
-      const visibleLawyers = user?.role === 'lawyer'
-        ? lawyers.filter((lawyer) => lawyer.id === user.lawyerId)
-        : lawyers;
-      res.json({ success: true, data: visibleLawyers });
+      if (user.role === 'lawyer') {
+        const lawyer = await dbService.getLawyerById(user.lawyerId, true);
+        res.json({ success: true, data: lawyer ? [lawyer] : [] });
+        return;
+      }
+      const lawyers = await dbService.getLawyers(onlyActive);
+      res.json({ success: true, data: lawyers });
     } catch (error: any) {
       res.status(500).json({ success: false, message: error.message || 'Failed to fetch lawyers' });
     }

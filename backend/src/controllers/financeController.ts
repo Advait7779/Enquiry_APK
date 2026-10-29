@@ -17,6 +17,7 @@ const financeQuerySchema = z.object({
   pageSize: z.coerce.number().int().min(1).max(200).default(50),
   breakdownPage: z.coerce.number().int().min(1).max(1_000_000).default(1),
   breakdownPageSize: z.coerce.number().int().min(1).max(200).optional(),
+  rowsOnly: z.literal('true').optional(),
 }).superRefine((value, ctx) => {
   if (Boolean(value.from) !== Boolean(value.to)) ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Both from and to dates are required' });
   if (Boolean(value.start) !== Boolean(value.end)) ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Both start and end times are required' });
@@ -95,7 +96,7 @@ export const financeController = {
         search: query.search,
       };
 
-      const result = await dbService.getFeesLedger(filter, query.page, query.pageSize);
+      const result = await dbService.getFeesLedger(filter, query.page, query.pageSize, query.rowsOnly !== 'true');
       const totalPages = Math.max(1, Math.ceil(result.total / query.pageSize));
 
       res.json({
@@ -136,7 +137,7 @@ export const financeController = {
       const batchSize = 200;
       let page = 1;
       while (!res.destroyed) {
-        const result = await dbService.getFeesLedger(filter, page, batchSize);
+        const result = await dbService.getFeesLedger(filter, page, batchSize, false);
         for (const item of result.items) {
           res.write([
             csvCell(item.day),
@@ -149,7 +150,7 @@ export const financeController = {
             csvCell(item.feesPaid),
           ].join(',') + '\n');
         }
-        if (page * batchSize >= result.total || result.items.length === 0) break;
+        if (result.items.length < batchSize) break;
         page += 1;
       }
       res.end();

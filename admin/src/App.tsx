@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { Sidebar, AdminTab } from './components/Sidebar';
 import { TopBar } from './components/TopBar';
 import { OverviewTab } from './components/OverviewTab';
@@ -23,6 +23,7 @@ export function App() {
   const [refreshKey, setRefreshKey] = useState(0);
   const [loadError, setLoadError] = useState('');
   const [showLogoutConfirm, setShowLogoutConfirm] = useState<boolean>(false);
+  const pendingRequest = useRef<AbortController | null>(null);
 
   // Check existing session
   useEffect(() => {
@@ -39,19 +40,34 @@ export function App() {
   }, []);
 
   const loadData = useCallback(async (silent = false) => {
+    if (activeTab === 'settings') {
+      setIsRefreshing(false);
+      setLoadError('');
+      return;
+    }
+    if (pendingRequest.current) {
+      if (silent) return;
+      pendingRequest.current.abort();
+    }
+    const controller = new AbortController();
+    pendingRequest.current = controller;
     if (!silent) setIsRefreshing(true);
     setLoadError('');
     try {
-      const [sum, law] = await Promise.all([
-        adminApi.getFeesSummary(),
-        activeTab === 'overview' ? Promise.resolve(null) : adminApi.getLawyers(),
-      ]);
-      setSummary(sum);
-      if (law) setLawyers(law);
+      if (activeTab === 'overview') {
+        const result = await adminApi.getFeesSummary(undefined, undefined, 1, 5, controller.signal);
+        if (!controller.signal.aborted) setSummary(result);
+      } else {
+        const result = await adminApi.getLawyers(controller.signal);
+        if (!controller.signal.aborted) setLawyers(result);
+      }
     } catch (error: any) {
-      setLoadError(error.message || 'Could not refresh chamber data.');
+      if (!controller.signal.aborted) setLoadError(error.message || 'Could not refresh chamber data.');
     } finally {
-      setIsRefreshing(false);
+      if (pendingRequest.current === controller) {
+        pendingRequest.current = null;
+        setIsRefreshing(false);
+      }
     }
   }, [activeTab]);
 
@@ -61,12 +77,24 @@ export function App() {
   }, [loadData]);
 
   useEffect(() => {
-    if (isAuthenticated) {
-      loadData();
-      const interval = setInterval(() => loadData(true), 15000);
-      return () => clearInterval(interval);
-    }
-  }, [isAuthenticated, loadData]);
+    if (!isAuthenticated) return;
+    if (document.visibilityState === 'visible') loadData();
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === 'visible') loadData(true);
+    };
+    document.addEventListener('visibilitychange', refreshWhenVisible);
+    const interval = activeTab === 'overview'
+      ? window.setInterval(() => {
+          if (document.visibilityState === 'visible') loadData(true);
+        }, 15000)
+      : null;
+    return () => {
+      if (interval !== null) window.clearInterval(interval);
+      document.removeEventListener('visibilitychange', refreshWhenVisible);
+      pendingRequest.current?.abort();
+      pendingRequest.current = null;
+    };
+  }, [isAuthenticated, activeTab, loadData]);
 
   const handleSelectLawyerForLedger = (lawyerId: string) => {
     setSelectedLawyerId(lawyerId);
@@ -102,7 +130,6 @@ export function App() {
         isOpen={true}
         onSuccess={() => {
           setIsAuthenticated(true);
-          loadData();
         }}
       />
     );

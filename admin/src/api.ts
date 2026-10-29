@@ -18,6 +18,7 @@ export interface LedgerFilters {
   pageSize?: number;
   breakdownPage?: number;
   breakdownPageSize?: number;
+  rowsOnly?: boolean;
 }
 
 function buildQuery(filters: LedgerFilters): string {
@@ -105,20 +106,20 @@ export const adminApi = {
     }
   },
 
-  async getFeesSummary(period?: string, lawyerId?: string, breakdownPage = 1, breakdownPageSize = 5): Promise<FeeSummary> {
+  async getFeesSummary(period?: string, lawyerId?: string, breakdownPage = 1, breakdownPageSize = 5, signal?: AbortSignal): Promise<FeeSummary> {
     const query = buildQuery({ period: period as LedgerFilters['period'], lawyerId, breakdownPage, breakdownPageSize });
-    const data = await readJson(await fetch(`${API_BASE}/admin/fees/summary${query}`, { headers: this.headers() }));
+    const data = await readJson(await fetch(`${API_BASE}/admin/fees/summary${query}`, { headers: this.headers(), signal }));
     return data.data;
   },
 
-  async getFeesLedger(filters: LedgerFilters): Promise<{
+  async getFeesLedger(filters: LedgerFilters, signal?: AbortSignal): Promise<{
     items: FeeTransaction[];
     total: number;
     totalFees: number;
     page: number;
     totalPages: number;
   }> {
-    const data = await readJson(await fetch(`${API_BASE}/admin/fees/ledger${buildQuery(filters)}`, { headers: this.headers() }));
+    const data = await readJson(await fetch(`${API_BASE}/admin/fees/ledger${buildQuery(filters)}`, { headers: this.headers(), signal }));
     return {
       items: data.data || [],
       total: data.pagination?.total || 0,
@@ -128,8 +129,8 @@ export const adminApi = {
     };
   },
 
-  async getLawyers(): Promise<ILawyer[]> {
-    const data = await readJson(await fetch(`${API_BASE}/lawyers`, { headers: this.headers() }));
+  async getLawyers(signal?: AbortSignal): Promise<ILawyer[]> {
+    const data = await readJson(await fetch(`${API_BASE}/lawyers`, { headers: this.headers(), signal }));
     return data.data || [];
   },
 

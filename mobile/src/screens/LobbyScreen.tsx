@@ -6,6 +6,7 @@ import {
   FlatList,
   RefreshControl,
   ActivityIndicator,
+  AppState,
 } from 'react-native';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { colors } from '../theme/colors';
@@ -23,6 +24,8 @@ import {
   NewClientSvg
 } from '../components/SvgIcons';
 
+const PAGE_SIZE = 30;
+
 export const LobbyScreen: React.FC = () => {
   const navigation = useNavigation<any>();
 
@@ -32,15 +35,26 @@ export const LobbyScreen: React.FC = () => {
   const [loadError, setLoadError] = useState('');
   const [relativeTime, setRelativeTime] = useState(new Date());
   const requestSequence = useRef(0);
+  const requestController = useRef<AbortController | null>(null);
+  const inFlight = useRef(false);
+  const currentPage = useRef(1);
+  const totalPages = useRef(1);
+  const scrollOffset = useRef(0);
 
-  const fetchData = useCallback(async (silent = false) => {
+  const fetchData = useCallback(async (silent = false, onlyAtTop = false) => {
+    if (inFlight.current) return;
+    inFlight.current = true;
+    const controller = new AbortController();
+    requestController.current = controller;
     const requestId = ++requestSequence.current;
     try {
       if (!silent) setLoading(true);
       setLoadError('');
-      const list = await apiClient.getEnquiries({ period: 'today' });
-      if (requestId === requestSequence.current) {
-        setEnquiries(list);
+      const result = await apiClient.getEnquiryPage({ period: 'today' }, 1, PAGE_SIZE, controller.signal);
+      if (requestId === requestSequence.current && (!onlyAtTop || scrollOffset.current < 100)) {
+        currentPage.current = 1;
+        totalPages.current = result.totalPages;
+        setEnquiries(result.items);
       }
     } catch (error: any) {
       if (requestId === requestSequence.current) {
@@ -48,26 +62,66 @@ export const LobbyScreen: React.FC = () => {
       }
     } finally {
       if (requestId === requestSequence.current) {
+        requestController.current = null;
+        inFlight.current = false;
         setLoading(false);
         setRefreshing(false);
       }
     }
   }, []);
 
+  const fetchNextPage = useCallback(async () => {
+    if (inFlight.current || currentPage.current >= totalPages.current) return;
+    inFlight.current = true;
+    const controller = new AbortController();
+    requestController.current = controller;
+    const requestId = ++requestSequence.current;
+    const nextPage = currentPage.current + 1;
+    try {
+      const result = await apiClient.getEnquiryPage({ period: 'today' }, nextPage, PAGE_SIZE, controller.signal);
+      if (requestId !== requestSequence.current) return;
+      currentPage.current = nextPage;
+      totalPages.current = result.totalPages;
+      setEnquiries((previous) => {
+        const seen = new Set(previous.map((item) => item.id));
+        return [...previous, ...result.items.filter((item) => !seen.has(item.id))];
+      });
+    } catch (error: any) {
+      if (requestId === requestSequence.current) {
+        setLoadError(error.message || 'Could not load more clients.');
+      }
+    } finally {
+      if (requestId === requestSequence.current) {
+        requestController.current = null;
+        inFlight.current = false;
+      }
+    }
+  }, []);
+
   useFocusEffect(
     useCallback(() => {
-      fetchData();
-      const syncTimer = setInterval(() => fetchData(true), 10000);
+      if (scrollOffset.current < 100) fetchData();
+      const syncTimer = setInterval(() => {
+        if (AppState.currentState === 'active' && scrollOffset.current < 100) fetchData(true, true);
+      }, 10000);
+      const appStateSubscription = AppState.addEventListener('change', (state) => {
+        if (state === 'active' && scrollOffset.current < 100) fetchData(true, true);
+      });
       const timeTimer = setInterval(() => setRelativeTime(new Date()), 60000);
       return () => {
         clearInterval(syncTimer);
         clearInterval(timeTimer);
+        appStateSubscription.remove();
+        requestController.current?.abort();
+        requestController.current = null;
         requestSequence.current += 1;
+        inFlight.current = false;
       };
     }, [fetchData])
   );
 
   const onRefresh = () => {
+    if (inFlight.current) return;
     setRefreshing(true);
     fetchData(true);
   };
@@ -119,6 +173,10 @@ export const LobbyScreen: React.FC = () => {
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
+          onScroll={(event) => { scrollOffset.current = event.nativeEvent.contentOffset.y; }}
+          scrollEventThrottle={1000}
+          onEndReached={fetchNextPage}
+          onEndReachedThreshold={0.4}
           refreshControl={
             <RefreshControl
               refreshing={refreshing}

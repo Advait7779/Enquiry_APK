@@ -129,24 +129,27 @@ export const LedgerTab: React.FC<LedgerTabProps> = ({
     });
   }, [activeLawyerId, taskFilter, debouncedSearch, page, pageSize, periodPreset, startDate, endDate]);
 
-  const loadLedger = useCallback(async () => {
+  const loadLedger = useCallback(async (signal: AbortSignal) => {
     setLoading(true);
     setLoadError('');
     try {
-      const res = await adminApi.getFeesLedger(buildFilters(true));
+      const res = await adminApi.getFeesLedger(buildFilters(true), signal);
+      if (signal.aborted) return;
       setTransactions(res.items);
       setTotalCount(res.total);
       setTotalFees(res.totalFees);
       setTotalPages(res.totalPages);
     } catch (err: any) {
-      setLoadError(err.message || 'Could not load the fees ledger.');
+      if (!signal.aborted) setLoadError(err.message || 'Could not load the fees ledger.');
     } finally {
-      setLoading(false);
+      if (!signal.aborted) setLoading(false);
     }
   }, [buildFilters, refreshKey]);
 
   useEffect(() => {
-    loadLedger();
+    const controller = new AbortController();
+    loadLedger(controller.signal);
+    return () => controller.abort();
   }, [loadLedger]);
 
   const formatCurrency = (val: number) => {
@@ -188,10 +191,9 @@ export const LedgerTab: React.FC<LedgerTabProps> = ({
       const rows: FeeTransaction[] = [];
       let nextPage = 1;
       while (true) {
-        const result = await adminApi.getFeesLedger({ ...filters, page: nextPage, pageSize: 200 });
+        const result = await adminApi.getFeesLedger({ ...filters, page: nextPage, pageSize: 200, rowsOnly: true });
         rows.push(...result.items);
-        if (rows.length >= result.total) break;
-        if (result.items.length === 0) throw new Error('The full ledger could not be loaded for printing.');
+        if (result.items.length < 200) break;
         nextPage += 1;
       }
       setPrintRows(rows);

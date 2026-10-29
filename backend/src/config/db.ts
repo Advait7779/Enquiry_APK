@@ -214,7 +214,8 @@ function filterStoreEnquiries(enquiries: IEnquiry[], filter?: EnquiryFilter): IE
     const end = new Date(filter.end);
     list = list.filter((enquiry) => new Date(enquiry.entryTime) >= start && new Date(enquiry.entryTime) < end);
   }
-  return list.sort((a, b) => new Date(b.entryTime).getTime() - new Date(a.entryTime).getTime());
+  return list.sort((a, b) =>
+    new Date(b.entryTime).getTime() - new Date(a.entryTime).getTime() || b.id.localeCompare(a.id));
 }
 
 export async function initDatabase(): Promise<boolean> {
@@ -727,6 +728,41 @@ export const dbService = {
       .sort((a, b) => a.name.localeCompare(b.name));
   },
 
+  async getLawyerById(id: string, onlyActive = false): Promise<ILawyer | null> {
+    if (usePrisma && prisma) {
+      const lawyer = await prisma.lawyer.findFirst({ where: { id, ...(onlyActive ? { isActive: true } : {}) } });
+      if (!lawyer) return null;
+      return {
+        id: lawyer.id,
+        name: lawyer.name,
+        username: lawyer.username,
+        role: lawyer.role,
+        phone: lawyer.phone,
+        email: lawyer.email,
+        assignedTasks: lawyer.assignedTasks,
+        isActive: lawyer.isActive,
+        hasPassword: Boolean(lawyer.passwordHash),
+        createdAt: lawyer.createdAt,
+        updatedAt: lawyer.updatedAt,
+      };
+    }
+    const lawyer = loadStore().lawyers.find((item: any) => item.id === id && (!onlyActive || item.isActive));
+    if (!lawyer) return null;
+    return {
+      id: lawyer.id,
+      name: lawyer.name,
+      username: lawyer.username || null,
+      role: lawyer.role || 'lawyer',
+      phone: lawyer.phone,
+      email: lawyer.email,
+      assignedTasks: lawyer.assignedTasks,
+      isActive: lawyer.isActive,
+      hasPassword: Boolean(lawyer.passwordHash),
+      createdAt: lawyer.createdAt,
+      updatedAt: lawyer.updatedAt,
+    };
+  },
+
   async createLawyer(data: CreateLawyerDTO): Promise<ILawyer> {
     const name = data.name.trim();
     const username = data.username ? data.username.trim().toLowerCase() : null;
@@ -903,63 +939,67 @@ export const dbService = {
       ]);
 
       const allBreakdownLawyers = lawyerId ? lawyers.filter((lawyer) => lawyer.id === lawyerId) : lawyers;
-      let breakdownLawyers = allBreakdownLawyers;
-      if (breakdownPage) {
-        const [assignedGroups, legacyGroups] = await Promise.all([
-          prisma.enquiry.groupBy({
-            by: ['lawyerId'],
-            where: { ...rangeWhere, lawyerId: { not: null } },
-            _max: { entryTime: true },
-          }),
-          prisma.enquiry.groupBy({
-            by: ['assignedAdvocate'],
-            where: { ...rangeWhere, lawyerId: null, assignedAdvocate: { not: null } },
-            _max: { entryTime: true },
-          }),
-        ]);
-        const lastById = new Map(assignedGroups.map((group) => [group.lawyerId, group._max.entryTime?.getTime() || 0]));
-        const lastByName = new Map<string, number>();
-        for (const group of legacyGroups) {
-          if (!group.assignedAdvocate) continue;
-          const name = group.assignedAdvocate.toLowerCase();
-          lastByName.set(name, Math.max(lastByName.get(name) || 0, group._max.entryTime?.getTime() || 0));
-        }
-        breakdownLawyers = [...allBreakdownLawyers]
-          .sort((a, b) => Math.max(lastById.get(b.id) || 0, lastByName.get(b.name.toLowerCase()) || 0)
-            - Math.max(lastById.get(a.id) || 0, lastByName.get(a.name.toLowerCase()) || 0)
-            || a.name.localeCompare(b.name))
-          .slice((breakdownPage.page - 1) * breakdownPage.pageSize, breakdownPage.page * breakdownPage.pageSize);
+      // Aggregate all lawyers together instead of issuing three queries for every visible lawyer.
+      const [rangeGroups, todayGroups] = await Promise.all([
+        prisma.enquiry.groupBy({
+          by: ['lawyerId', 'assignedAdvocate'],
+          where: rangeWhere,
+          _sum: { feesPaid: true },
+          _count: { _all: true },
+          _max: { entryTime: true },
+        }),
+        prisma.enquiry.groupBy({
+          by: ['lawyerId', 'assignedAdvocate'],
+          where: todayWhere,
+          _sum: { feesPaid: true },
+        }),
+      ]);
+      type GroupTotals = { fees: number; clients: number; latest: number };
+      const rangeById = new Map<string, GroupTotals>();
+      const rangeByName = new Map<string, GroupTotals>();
+      const todayById = new Map<string, number>();
+      const todayByName = new Map<string, number>();
+      for (const group of rangeGroups) {
+        const key = group.lawyerId || group.assignedAdvocate?.toLowerCase();
+        if (!key) continue;
+        const totals = group.lawyerId ? rangeById : rangeByName;
+        const previous = totals.get(key) || { fees: 0, clients: 0, latest: 0 };
+        totals.set(key, {
+          fees: previous.fees + Number(group._sum.feesPaid || 0),
+          clients: previous.clients + group._count._all,
+          latest: Math.max(previous.latest, group._max.entryTime?.getTime() || 0),
+        });
       }
-      const lawyerBreakdown: LawyerFeeBreakdown[] = await Promise.all(breakdownLawyers.map(async (lawyer) => {
-        const lawyerWhere: any = {
-          deletedAt: null,
-          OR: [
-            { lawyerId: lawyer.id },
-            { AND: [{ lawyerId: null }, { assignedAdvocate: { equals: lawyer.name, mode: 'insensitive' } }] },
-          ],
-        };
-        const lawyerRangeWhere = start && end
-          ? { ...lawyerWhere, entryTime: { gte: start, lt: end } }
-          : lawyerWhere;
-        const [total, today, clientCount] = await prisma!.$transaction([
-          prisma!.enquiry.aggregate({ where: lawyerRangeWhere, _sum: { feesPaid: true }, _max: { entryTime: true } }),
-          prisma!.enquiry.aggregate({
-            where: { ...lawyerWhere, entryTime: { gte: officeToday.start, lt: officeToday.end } },
-            _sum: { feesPaid: true },
-          }),
-          prisma!.enquiry.count({ where: lawyerRangeWhere }),
-        ]);
+      for (const group of todayGroups) {
+        const key = group.lawyerId || group.assignedAdvocate?.toLowerCase();
+        if (!key) continue;
+        const totals = group.lawyerId ? todayById : todayByName;
+        totals.set(key, (totals.get(key) || 0) + Number(group._sum.feesPaid || 0));
+      }
+      const lastFeeTime = (lawyer: ILawyer) => Math.max(
+        rangeById.get(lawyer.id)?.latest || 0,
+        rangeByName.get(lawyer.name.toLowerCase())?.latest || 0,
+      );
+      const breakdownLawyers = breakdownPage
+        ? [...allBreakdownLawyers]
+          .sort((a, b) => lastFeeTime(b) - lastFeeTime(a) || a.name.localeCompare(b.name))
+          .slice((breakdownPage.page - 1) * breakdownPage.pageSize, breakdownPage.page * breakdownPage.pageSize)
+        : allBreakdownLawyers;
+      const lawyerBreakdown: LawyerFeeBreakdown[] = breakdownLawyers.map((lawyer) => {
+        const byId = rangeById.get(lawyer.id);
+        const byName = rangeByName.get(lawyer.name.toLowerCase());
+        const latest = lastFeeTime(lawyer);
         return {
           lawyerId: lawyer.id,
           lawyerName: lawyer.name,
           isActive: lawyer.isActive,
-          totalCollected: Number(total._sum.feesPaid || 0),
-          todayCollected: Number(today._sum.feesPaid || 0),
-          clientCount,
-          lastFeeAt: total._max.entryTime?.toISOString() || null,
+          totalCollected: (byId?.fees || 0) + (byName?.fees || 0),
+          todayCollected: (todayById.get(lawyer.id) || 0) + (todayByName.get(lawyer.name.toLowerCase()) || 0),
+          clientCount: (byId?.clients || 0) + (byName?.clients || 0),
+          lastFeeAt: latest ? new Date(latest).toISOString() : null,
           assignedTasks: lawyer.assignedTasks,
         };
-      }));
+      });
 
       return {
         totalCollected: Number(rangeAggregate._sum.feesPaid || 0),
@@ -1046,9 +1086,10 @@ export const dbService = {
   async getFeesLedger(
     filter: { start?: string; end?: string; lawyerId?: string; purpose?: string; search?: string },
     page = 1,
-    pageSize = 50
+    pageSize = 50,
+    includeTotals = true,
   ): Promise<{ items: FeeTransaction[]; total: number; totalFees: number }> {
-    const lawyers = await this.getLawyers();
+    const targetLawyer = filter.lawyerId ? await this.getLawyerById(filter.lawyerId) : null;
     if (usePrisma && prisma) {
       const where: any = { deletedAt: null };
       const conditions: any[] = [];
@@ -1059,7 +1100,6 @@ export const dbService = {
         where.purpose = { contains: filter.purpose, mode: 'insensitive' };
       }
       if (filter.lawyerId) {
-        const targetLawyer = lawyers.find((l) => l.id === filter.lawyerId);
         if (targetLawyer) {
           conditions.push({ OR: [
             { lawyerId: filter.lawyerId },
@@ -1078,16 +1118,19 @@ export const dbService = {
       }
       if (conditions.length > 0) where.AND = conditions;
 
-      const [rows, total, aggregate] = await prisma.$transaction([
-        prisma.enquiry.findMany({
-          where,
-          orderBy: [{ entryTime: 'desc' }, { id: 'desc' }],
-          skip: (page - 1) * pageSize,
-          take: pageSize,
-        }),
-        prisma.enquiry.count({ where }),
-        prisma.enquiry.aggregate({ where, _sum: { feesPaid: true } }),
-      ]);
+      const rowsQuery = prisma.enquiry.findMany({
+        where,
+        orderBy: [{ entryTime: 'desc' }, { id: 'desc' }],
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+      });
+      const [rows, total, aggregate] = includeTotals
+        ? await prisma.$transaction([
+          rowsQuery,
+          prisma.enquiry.count({ where }),
+          prisma.enquiry.aggregate({ where, _sum: { feesPaid: true } }),
+        ])
+        : [await rowsQuery, 0, null] as const;
       const items: FeeTransaction[] = rows.map((entry: any) => {
         const dateObj = new Date(entry.entryTime);
         return {
@@ -1104,7 +1147,7 @@ export const dbService = {
           feesPaid: Number(entry.feesPaid || 0),
         };
       });
-      return { items, total, totalFees: Number(aggregate._sum.feesPaid || 0) };
+      return { items, total, totalFees: Number(aggregate?._sum.feesPaid || 0) };
     }
 
     let enquiries = loadStore().enquiries.filter((e) => !e.deletedAt);
@@ -1118,7 +1161,6 @@ export const dbService = {
         enquiries = enquiries.filter((e) => e.purpose.toLowerCase().includes(p));
       }
       if (filter.lawyerId) {
-        const targetLawyer = lawyers.find((l) => l.id === filter.lawyerId);
         const targetName = targetLawyer ? targetLawyer.name.toLowerCase() : '';
         enquiries = enquiries.filter(
           (e) => e.lawyerId === filter.lawyerId ||
@@ -1134,10 +1176,11 @@ export const dbService = {
             e.purpose.toLowerCase().includes(q)
         );
       }
-    enquiries.sort((a, b) => new Date(b.entryTime).getTime() - new Date(a.entryTime).getTime());
+    enquiries.sort((a, b) =>
+      new Date(b.entryTime).getTime() - new Date(a.entryTime).getTime() || b.id.localeCompare(a.id));
 
-    const totalFees = enquiries.reduce((sum, e) => sum + (Number(e.feesPaid) || 0), 0);
-    const total = enquiries.length;
+    const totalFees = includeTotals ? enquiries.reduce((sum, e) => sum + (Number(e.feesPaid) || 0), 0) : 0;
+    const total = includeTotals ? enquiries.length : 0;
     const paginated = enquiries.slice((page - 1) * pageSize, page * pageSize);
 
     const items: FeeTransaction[] = paginated.map((e) => {

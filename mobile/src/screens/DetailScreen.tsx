@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -8,10 +8,11 @@ import {
   Linking,
   Alert,
   Share,
-  Platform
+  Platform,
+  AppState,
 } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { useRoute, useNavigation, RouteProp } from '@react-navigation/native';
+import { useRoute, useNavigation, useFocusEffect, RouteProp } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors } from '../theme/colors';
 import { UrgencyBadge } from '../components/UrgencyBadge';
@@ -44,12 +45,12 @@ export const DetailScreen: React.FC = () => {
   const [loadError, setLoadError] = useState('');
   const requestSequence = useRef(0);
 
-  const fetchDetail = useCallback(async (silent = false) => {
+  const fetchDetail = useCallback(async (silent = false, signal?: AbortSignal) => {
     const requestId = ++requestSequence.current;
     try {
       if (!silent) setLoading(true);
       setLoadError('');
-      const data = await apiClient.getEnquiryById(enquiryId);
+      const data = await apiClient.getEnquiryById(enquiryId, signal);
       if (requestId !== requestSequence.current) return;
       if (data) {
         setEnquiry(data);
@@ -63,14 +64,22 @@ export const DetailScreen: React.FC = () => {
     }
   }, [enquiryId]);
 
-  useEffect(() => {
-    fetchDetail();
-    const timer = setInterval(() => fetchDetail(true), 15000);
+  useFocusEffect(useCallback(() => {
+    const controller = new AbortController();
+    fetchDetail(false, controller.signal);
+    const timer = setInterval(() => {
+      if (AppState.currentState === 'active') fetchDetail(true, controller.signal);
+    }, 15000);
+    const appStateSubscription = AppState.addEventListener('change', (state) => {
+      if (state === 'active') fetchDetail(true, controller.signal);
+    });
     return () => {
       clearInterval(timer);
+      appStateSubscription.remove();
+      controller.abort();
       requestSequence.current += 1;
     };
-  }, [fetchDetail]);
+  }, [fetchDetail]));
 
   const handleCall = () => {
     if (!enquiry) return;
